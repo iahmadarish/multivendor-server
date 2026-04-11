@@ -1,11 +1,11 @@
-import Seller from "../models/Seller.model.js";
+import Seller from "./Seller.model.js";
 import {
     generateAccessToken,
     generateRefreshToken,
     verifyRefreshToken,
-} from "../utils/jwt.utils.js";
-import { generatePhoneOtp, hashToken, generateEmailOtp } from "../utils/token.utils.js";
-import { sendEmailOtp, sendResendConfirmation } from "../utils/email.service.js";
+} from "../../utils/jwt.utils.js";
+import { generatePhoneOtp, hashToken, generateEmailOtp } from "../../utils/token.utils.js";
+import { sendEmailOtp, sendResendConfirmation } from "../../utils/email.service.js";
 
 // ─── Helper: attach HttpOnly refresh-token cookie ─────────────
 const attachRefreshCookie = (res, token) => {

@@ -1,5 +1,5 @@
 import { verifyAccessToken } from "../utils/jwt.utils.js";
-import Seller from "../models/Seller.model.js";
+import Seller from "../modules/seller/Seller.model.js";
 
 /**
  * ─── protectSeller ────────────────────────────────────────────

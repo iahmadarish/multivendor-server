@@ -27,7 +27,7 @@ import adminShippingRoutes from "./routes/admin.shippingRoutes.js";
 import pageMetaRoutes from "./routes/pageMeta.js";
 
 import cookieParser from "cookie-parser";
-import sellerAuthRoutes from "./routes/sellerAuth.routes.js";
+import sellerAuthRoutes from "./modules/seller/sellerAuth.routes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";

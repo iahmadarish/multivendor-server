@@ -1,6 +1,6 @@
 // controllers/sellerOnboarding.controller.js (NEW FILE)
 
-import Seller from "../models/Seller.model.js";
+import Seller from "./Seller.model.js";
 
 // ============================================================
 //  @desc    Update Business Information

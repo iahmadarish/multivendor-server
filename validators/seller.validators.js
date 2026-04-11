@@ -1,6 +1,9 @@
 import { body } from "express-validator";
 
-// ─── Registration Validation Rules ────────────────────────────
+// ============================================================
+//  Registration & Auth Validators
+// ============================================================
+
 export const registerSellerRules = [
     body("fullName")
         .trim()
@@ -44,11 +47,9 @@ export const registerSellerRules = [
         .withMessage("Password must contain at least one number"),
 
     body("termsAccepted").equals("true").withMessage("You must accept the terms and conditions"),
-
     body("privacyPolicyAccepted").equals("true").withMessage("You must accept the privacy policy"),
 ];
 
-// ─── Login Validation Rules ────────────────────────────────────
 export const loginSellerRules = [
     body("email")
         .trim()
@@ -61,7 +62,6 @@ export const loginSellerRules = [
     body("password").notEmpty().withMessage("Password is required"),
 ];
 
-// ─── Phone OTP Verification Rules ─────────────────────────────
 export const verifyPhoneOtpRules = [
     body("phone")
         .trim()
@@ -80,7 +80,6 @@ export const verifyPhoneOtpRules = [
         .withMessage("OTP must be numeric"),
 ];
 
-// ─── Email OTP Verification Rules ─────────────────────────────
 export const verifyEmailOtpRules = [
     body("email")
         .trim()
@@ -100,7 +99,6 @@ export const verifyEmailOtpRules = [
         .withMessage("OTP must be numeric"),
 ];
 
-// ─── Resend Email OTP Rules ───────────────────────────────────
 export const resendEmailOtpRules = [
     body("email")
         .trim()
@@ -111,7 +109,10 @@ export const resendEmailOtpRules = [
         .normalizeEmail(),
 ];
 
-// ─── Onboarding Validation Rules ──────────────────────────────
+// ============================================================
+//  Onboarding Validators (First-time setup — directly applied)
+// ============================================================
+
 export const businessInfoRules = [
     body("businessType")
         .optional()
@@ -119,9 +120,7 @@ export const businessInfoRules = [
         .withMessage("Business type must be 'individual' or 'company'"),
 
     body("companyRegistrationNumber").optional().trim(),
-
     body("vatOrBinNumber").optional().trim(),
-
     body("country").optional().trim(),
 ];
 
@@ -132,12 +131,13 @@ export const financialInfoRules = [
         .withMessage("Invalid payout method"),
 
     body("bankAccountName").optional().trim(),
-
     body("bankAccountNumber").optional().trim(),
-
     body("bankName").optional().trim(),
 
-    body("chequeImage").optional().isURL().withMessage("Cheque image must be a valid URL"),
+    body("chequeImage")
+        .optional()
+        .isURL()
+        .withMessage("Cheque image must be a valid URL"),
 
     body("payoutSchedule")
         .optional()
@@ -152,15 +152,12 @@ export const logisticsInfoRules = [
         .withMessage("Shipping method must be 'self' or 'platform'"),
 
     body("warehouseLocation").optional().trim(),
-
     body("returnAddress").optional().trim(),
-
     body("deliveryCoverageArea").optional().trim(),
 ];
 
 export const storeInfoRules = [
     body("shopLogo").optional().isURL().withMessage("Shop logo must be a valid URL"),
-
     body("shopBanner").optional().isURL().withMessage("Shop banner must be a valid URL"),
 
     body("shopDescription")
@@ -169,6 +166,116 @@ export const storeInfoRules = [
         .withMessage("Shop description cannot exceed 2000 characters"),
 
     body("socialLinks").optional().isArray().withMessage("Social links must be an array"),
-
     body("socialLinks.*").optional().isURL().withMessage("Each social link must be a valid URL"),
+];
+
+// ============================================================
+//  Profile Update Validators (Post-onboarding — needs approval)
+//  Onboarding rules এর মতোই, কিন্তু আলাদা রাখা হয়েছে যাতে
+//  ভবিষ্যতে আলাদা rules দেওয়া যায় (যেমন কঠোর validation)।
+// ============================================================
+
+export const updateProfileRules = [
+    body("fullName")
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 100 })
+        .withMessage("Full name must be between 2 and 100 characters"),
+
+    body("shopName")
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 100 })
+        .withMessage("Shop name must be between 2 and 100 characters"),
+];
+
+export const updateBusinessRules = [
+    body("businessType")
+        .optional()
+        .isIn(["individual", "company"])
+        .withMessage("Business type must be 'individual' or 'company'"),
+
+    body("companyRegistrationNumber").optional().trim(),
+    body("vatOrBinNumber").optional().trim(),
+    body("country").optional().trim(),
+];
+
+export const updateFinancialRules = [
+    body("payoutMethod")
+        .optional()
+        .isIn(["bank", "mobile_banking", "payoneer"])
+        .withMessage("Invalid payout method"),
+
+    body("bankAccountName").optional().trim(),
+    body("bankAccountNumber").optional().trim(),
+    body("bankName").optional().trim(),
+
+    body("chequeImage")
+        .optional()
+        .isURL()
+        .withMessage("Cheque image must be a valid URL"),
+
+    body("payoutSchedule")
+        .optional()
+        .isIn(["weekly", "monthly"])
+        .withMessage("Payout schedule must be 'weekly' or 'monthly'"),
+];
+
+export const updateLogisticsRules = [
+    body("shippingMethod")
+        .optional()
+        .isIn(["self", "platform"])
+        .withMessage("Shipping method must be 'self' or 'platform'"),
+
+    body("warehouseLocation").optional().trim(),
+    body("returnAddress").optional().trim(),
+    body("deliveryCoverageArea").optional().trim(),
+];
+
+export const updateStoreRules = [
+    body("shopLogo").optional().isURL().withMessage("Shop logo must be a valid URL"),
+    body("shopBanner").optional().isURL().withMessage("Shop banner must be a valid URL"),
+
+    body("shopDescription")
+        .optional()
+        .isLength({ max: 2000 })
+        .withMessage("Shop description cannot exceed 2000 characters"),
+
+    body("socialLinks").optional().isArray().withMessage("Social links must be an array"),
+    body("socialLinks.*").optional().isURL().withMessage("Each social link must be a valid URL"),
+];
+
+// ─── Identity Validation Rules (NID / Passport) ───────────────
+export const identityInfoRules = [
+    body("identityType")
+        .optional()
+        .isIn(["nid", "passport"])
+        .withMessage("Identity type must be 'nid' or 'passport'"),
+
+    body("identityNumber")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("Identity number cannot be empty")
+        .isLength({ min: 5, max: 30 })
+        .withMessage("Identity number must be between 5 and 30 characters"),
+
+    body("identityFrontImage")
+        .optional()
+        .isURL()
+        .withMessage("Identity front image must be a valid URL"),
+
+    body("identityBackImage")
+        .optional()
+        .isURL()
+        .withMessage("Identity back image must be a valid URL"),
+
+    // identityType দিলে অবশ্যই number ও front image লাগবে
+    body("identityNumber").if(body("identityType").exists()).notEmpty().withMessage(
+        "Identity number is required when identity type is provided",
+    ),
+
+    body("identityFrontImage").if(body("identityType").exists()).notEmpty().withMessage(
+        "Identity front image is required when identity type is provided",
+    ),
 ];
