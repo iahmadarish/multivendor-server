@@ -1,6 +1,6 @@
 import express from 'express';
-import { getCart, addItemToCart, updateCartItem, removeItemFromCart } from '../controllers/cartController.js';
-import { protect } from '../middlewares/authMiddleware.js'; 
+import { getCart, addItemToCart, updateCartItem, removeItemFromCart } from './cartController.js';
+import { protect } from '../../middlewares/authMiddleware.js'; 
 
 const router = express.Router();
 
@@ -8,7 +8,7 @@ router.route('/')
     .get(protect, getCart) 
     .post(protect, addItemToCart);  
 router.route('/:itemId')
-    .put(protect, updateCartItem) // 
+    .put(protect, updateCartItem) 
     .delete(protect, removeItemFromCart); 
 
 export default router;

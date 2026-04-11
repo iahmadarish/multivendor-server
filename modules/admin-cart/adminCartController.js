@@ -1,18 +1,15 @@
-import Cart from '../models/cart.model.js';
-import User from '../models/user.model.js';
-import Product from '../modules/product/product.model.js';
-import Promotion from '../models/promotion.model.js';
-import Campaign from '../models/campaign.model.js';
-import { sendPromotionEmail } from '../utils/emailService.js';
+import Cart from '../cart/cart.model.js';
+import User from '../../models/user.model.js';
+import Promotion from '../promotion/promotion.model.js';
+import Campaign from '../campaign/campaign.model.js';
+import { sendPromotionEmail } from '../../utils/emailService.js';
 
-// সব কার্ট ডেটা ফেচ করা
+
 export const getAllCarts = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search = '' } = req.query;
 
     const query = {};
-    
-    // সার্চ ফাংশনালিটি
     if (search) {
       query.$or = [
         { 'user.name': { $regex: search, $options: 'i' } },
@@ -50,7 +47,7 @@ export const getAllCarts = async (req, res, next) => {
   }
 };
 
-// কার্ট স্ট্যাটিস্টিক্স
+
 export const getCartStats = async (req, res, next) => {
   try {
     const totalCarts = await Cart.countDocuments();
@@ -58,11 +55,7 @@ export const getCartStats = async (req, res, next) => {
     const abandonedCarts = await Cart.countDocuments({
       updatedAt: { $lt: twoHoursAgo }
     });
-
-    // Get unique users with carts
     const uniqueUsers = await Cart.distinct('user');
-
-    // Get popular products in carts
     const popularProducts = await Cart.aggregate([
       { $unwind: '$items' },
       {
@@ -120,14 +113,13 @@ export const getCartStats = async (req, res, next) => {
   }
 };
 
-// অ্যাবানডন্ড কার্টস
 export const getAbandonedCarts = async (req, res, next) => {
   try {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
     
     const abandonedCarts = await Cart.find({
       updatedAt: { $lt: twoHoursAgo },
-      'items.0': { $exists: true } // কার্টে আইটেম আছে
+      'items.0': { $exists: true } 
     })
     .populate('user', 'name email')
     .populate('items.product', 'name price imageGroups')
@@ -143,7 +135,7 @@ export const getAbandonedCarts = async (req, res, next) => {
   }
 };
 
-// controllers/adminCartController.js - createCampaign function
+
 export const createCampaign = async (req, res, next) => {
   try {
     console.log('📨 Campaign Creation Request:', req.body);
@@ -155,11 +147,11 @@ export const createCampaign = async (req, res, next) => {
       discountValue,
       durationHours,
       minimumCartValue,
-      targetType, // frontend থেকে আসছে: 'abandoned_cart', 'all_users'
+      targetType,
       targetUsers
     } = req.body;
 
-    // 🔥 Map frontend targetType to backend targetUsers enum values
+    // Map frontend targetType to backend targetUsers enum values
     let targetUsersValue;
     if (targetType === 'abandoned_cart') {
       targetUsersValue = 'abandoned_cart_users';
@@ -186,12 +178,11 @@ export const createCampaign = async (req, res, next) => {
       });
     }
 
-    // প্রমোশন তৈরি করুন - 🔥 সঠিক enum value ব্যবহার করুন
     const promotion = await Promotion.create({
       name,
       description: description || '',
       type: 'abandoned_cart',
-      targetUsers: targetUsersValue, // 🔥 mapped value ব্যবহার করুন
+      targetUsers: targetUsersValue, 
       discountType,
       discountValue: Number(discountValue),
       minimumCartValue: minimumCartValue ? Number(minimumCartValue) : undefined,
@@ -205,8 +196,6 @@ export const createCampaign = async (req, res, next) => {
 
     let targetCarts = [];
     let message = '';
-
-    // 🔥 টার্গেট টাইপ অনুযায়ী কার্ট সিলেক্ট করুন - frontend values ব্যবহার করুন
     if (targetType === 'abandoned_cart') {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
       targetCarts = await Cart.find({
@@ -239,11 +228,9 @@ export const createCampaign = async (req, res, next) => {
 
     console.log(`🎯 Found ${targetCarts.length} target carts`);
 
-    // প্রতিটি টার্গেট ইউজারের জন্য ক্যাম্পেইন তৈরি করুন
     let campaignsCreated = 0;
     for (const cart of targetCarts) {
       try {
-        // Check if user exists and has email
         if (!cart.user || !cart.user.email) {
           console.log('⚠️ Skipping cart - no user or email found');
           continue;
@@ -256,7 +243,6 @@ export const createCampaign = async (req, res, next) => {
           expiresAt: new Date(Date.now() + (durationHours || 24) * 60 * 60 * 1000)
         });
 
-        // ইমেইল নোটিফিকেশন পাঠান
         try {
           await sendPromotionEmail({
             to: cart.user.email,
@@ -267,23 +253,22 @@ export const createCampaign = async (req, res, next) => {
             expiryHours: durationHours || 24,
             campaignId: campaign._id
           });
-          console.log(`📧 Email sent to: ${cart.user.email}`);
+          console.log(` Email sent to: ${cart.user.email}`);
         } catch (emailError) {
-          console.error(`❌ Email failed for ${cart.user.email}:`, emailError);
+          console.error(`Email failed for ${cart.user.email}:`, emailError);
         }
 
         campaignsCreated++;
       } catch (error) {
-        console.error(`❌ Error creating campaign for user ${cart.user?.email}:`, error);
+        console.error(`Error creating campaign for user ${cart.user?.email}:`, error);
       }
     }
 
-    // প্রমোশন আপডেট করুন
     await Promotion.findByIdAndUpdate(promotion._id, {
       currentUsage: campaignsCreated
     });
 
-    console.log(`✅ Campaign creation completed: ${campaignsCreated} campaigns created`);
+    console.log(`Campaign creation completed: ${campaignsCreated} campaigns created`);
 
     res.json({
       success: true,
@@ -293,7 +278,7 @@ export const createCampaign = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('❌ Campaign Creation Error:', error);
+    console.error('Campaign Creation Error:', error);
     res.status(500).json({
       success: false,
       message: 'Error creating campaign: ' + error.message
@@ -305,9 +290,7 @@ export const createCampaign = async (req, res, next) => {
 export const sendBulkPromotions = async (req, res, next) => {
   try {
     const { userIds, promotionData } = req.body;
-
     const users = await User.find({ _id: { $in: userIds } });
-    
     let sentCount = 0;
     for (const user of users) {
       try {
@@ -321,7 +304,6 @@ export const sendBulkPromotions = async (req, res, next) => {
         console.error(`Error sending email to ${user.email}:`, error);
       }
     }
-
     res.json({
       success: true,
       message: `Promotions sent to ${sentCount} users successfully`

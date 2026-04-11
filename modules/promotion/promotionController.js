@@ -1,10 +1,9 @@
-import Promotion from '../models/promotion.model.js';
-import Campaign from '../models/campaign.model.js';
-import Cart from '../models/cart.model.js';
-import User from '../models/user.model.js';
-import { sendPromotionEmail } from '../utils/emailService.js';
+import Promotion from './promotion.model.js';
+import Campaign from '../campaign/campaign.model.js';
+import Cart from '../cart/cart.model.js';
+import { sendPromotionEmail } from '../../utils/emailService.js';
 
-// অ্যাবানডন্ড কার্ট ইউজারদের জন্য প্রমোশন ক্রিয়েট
+
 export const createAbandonedCartPromotion = async (req, res, next) => {
   try {
     const {
@@ -15,10 +14,9 @@ export const createAbandonedCartPromotion = async (req, res, next) => {
       minimumCartValue,
       applicableProducts,
       excludedProducts,
-      durationHours = 24 // ডিফল্ট ২৪ ঘন্টা
+      durationHours = 24
     } = req.body;
 
-    // প্রমোশন ক্রিয়েট
     const promotion = await Promotion.create({
       name,
       description,
@@ -33,13 +31,13 @@ export const createAbandonedCartPromotion = async (req, res, next) => {
       endDate: new Date(Date.now() + durationHours * 60 * 60 * 1000)
     });
 
-    // অ্যাবানডন্ড কার্ট ইউজার খুঁজে বের করা
+
     const abandonedCarts = await Cart.aggregate([
       {
         $match: {
-          'items.0': { $exists: true }, // কার্টে আইটেম আছে
-          updatedAt: { 
-            $lte: new Date(Date.now() - 2 * 60 * 60 * 1000) // ২ ঘন্টার বেশি পুরানো
+          'items.0': { $exists: true },
+          updatedAt: {
+            $lte: new Date(Date.now() - 2 * 60 * 60 * 1000)
           }
         }
       },
@@ -56,7 +54,7 @@ export const createAbandonedCartPromotion = async (req, res, next) => {
       }
     ]);
 
-    // প্রতিটি ইউজারের জন্য ক্যাম্পেইন ক্রিয়েট এবং নোটিফিকেশন পাঠানো
+
     for (const cart of abandonedCarts) {
       const campaign = await Campaign.create({
         user: cart.user,
@@ -64,8 +62,6 @@ export const createAbandonedCartPromotion = async (req, res, next) => {
         cartItems: cart.items,
         expiresAt: new Date(Date.now() + durationHours * 60 * 60 * 1000)
       });
-
-      // ইমেইল নোটিফিকেশন
       await sendPromotionEmail({
         to: cart.userInfo.email,
         name: cart.userInfo.name,
@@ -75,13 +71,10 @@ export const createAbandonedCartPromotion = async (req, res, next) => {
         expiryHours: durationHours,
         campaignId: campaign._id
       });
-
-      // প্রমোশনে নোটিফিকেশন সেন্ট আপডেট
       await Promotion.findByIdAndUpdate(promotion._id, {
         $addToSet: { notificationSent: cart.user }
       });
     }
-
     res.status(201).json({
       success: true,
       message: `Promotion created and notifications sent to ${abandonedCarts.length} users`,
@@ -93,7 +86,7 @@ export const createAbandonedCartPromotion = async (req, res, next) => {
   }
 };
 
-// ইউজারের একটিভ ক্যাম্পেইন গুলো ফেচ করা
+
 export const getUserCampaigns = async (req, res, next) => {
   try {
     const campaigns = await Campaign.find({
@@ -101,7 +94,6 @@ export const getUserCampaigns = async (req, res, next) => {
       status: 'active',
       expiresAt: { $gt: new Date() }
     }).populate('promotion').populate('cartItems.product');
-
     res.status(200).json({
       success: true,
       campaigns
@@ -111,17 +103,16 @@ export const getUserCampaigns = async (req, res, next) => {
   }
 };
 
+
 export const applyCampaignToCart = async (req, res, next) => {
   try {
     const { campaignId } = req.body;
-
     const campaign = await Campaign.findOne({
       _id: campaignId,
       user: req.user.id,
       status: 'active',
       expiresAt: { $gt: new Date() }
     }).populate('promotion');
-
     if (!campaign) {
       return res.status(404).json({
         success: false,
@@ -129,11 +120,9 @@ export const applyCampaignToCart = async (req, res, next) => {
       });
     }
 
-    // ক্যাম্পেইন ব্যবহার করা হলে স্ট্যাটাস আপডেট করুন
     campaign.status = 'used';
     campaign.usedAt = new Date();
     await campaign.save();
-
     res.status(200).json({
       success: true,
       message: 'Campaign applied successfully',

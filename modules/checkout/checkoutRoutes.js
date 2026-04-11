@@ -6,8 +6,8 @@ import {
     getCourierBranches,
     validateLocation  ,
     getCourierDistricts
-} from '../controllers/checkoutController.js';
-import { protect, optionalProtect } from '../middlewares/authMiddleware.js';
+} from './checkoutController.js';
+import { protect, optionalProtect } from '../../middlewares/authMiddleware.js';
 
 const router = express.Router();
 

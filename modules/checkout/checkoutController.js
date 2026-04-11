@@ -1,6 +1,6 @@
-import Cart from '../models/cart.model.js';
-import Coupon from '../models/Coupon.js';
-import { District, CourierBranch, ShippingRate } from '../models/ShippingConfig.model.js';
+import Cart from '../cart/cart.model.js';
+import Coupon from '../coupon/Coupon.js';
+import { District, CourierBranch, ShippingRate } from '../../models/ShippingConfig.model.js';
 
 
 const applyCouponLogic = async (couponCode, itemsSubtotal, itemsToProcess, userId) => {

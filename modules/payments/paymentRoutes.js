@@ -6,7 +6,7 @@ import {
     processSuccessRedirect,
     processFailRedirect,
     processCancelRedirect
-} from '../controllers/paymentController.js';
+} from './paymentController.js';
 
 const router = express.Router();
 

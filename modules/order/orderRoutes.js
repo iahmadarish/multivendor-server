@@ -4,8 +4,8 @@ import {
   createOrder, 
   getOrderById, 
   getMyOrders 
-} from '../controllers/orderController.js';
-import { optionalProtect } from '../middlewares/authMiddleware.js';
+} from './orderController.js';
+import { optionalProtect } from '../../middlewares/authMiddleware.js';
 
 const router = express.Router();
 

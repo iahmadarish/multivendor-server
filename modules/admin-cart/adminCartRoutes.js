@@ -1,12 +1,12 @@
 import express from 'express';
-import { protect, adminOnly } from '../middlewares/authMiddleware.js';
+import { protect, adminOnly } from '../../middlewares/authMiddleware.js';
 import {
   getAllCarts,
   getCartStats,
   createCampaign,
   getAbandonedCarts,
   sendBulkPromotions
-} from '../controllers/adminCartController.js';
+} from './adminCartController.js';
 
 const router = express.Router();
 

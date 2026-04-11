@@ -1,8 +1,8 @@
 
 
-import Order from '../models/order.model.js';
-import { verifyPayment } from '../config/sslcommerz.js';
-import { updateProductStock } from './orderController.js';
+import Order from '../order/order.model.js';
+import { verifyPayment } from '../../config/sslcommerz.js';
+import { updateProductStock } from '../order/orderController.js'
 
 const getClientUrl = () => {
     return process.env.CLIENT_URL || 

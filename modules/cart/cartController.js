@@ -1,7 +1,7 @@
 
 
-import Cart from '../models/cart.model.js';
-import Product from '../modules/product/product.model.js';
+import Cart from './cart.model.js';
+import Product from '../product/product.model.js';
 
 
 
