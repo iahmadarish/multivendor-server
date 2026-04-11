@@ -2,7 +2,7 @@
 import mongoose from 'mongoose';
 import Order from '../models/order.model.js';
 import Cart from '../models/cart.model.js';
-import Product from '../models/product.model.js';
+import Product from '../modules/product/product.model.js';
 
 import { initializePayment } from '../config/sslcommerz.js';
 

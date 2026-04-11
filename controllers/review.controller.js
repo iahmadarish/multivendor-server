@@ -1,6 +1,6 @@
 // controllers/review.controller.js
 import Review from "../models/review.model.js";
-import Product from "../models/product.model.js";
+import Product from "../modules/product/product.model.js";
 import mongoose from "mongoose";
 import { validationResult } from "express-validator";
 

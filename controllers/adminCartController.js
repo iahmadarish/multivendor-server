@@ -1,6 +1,6 @@
 import Cart from '../models/cart.model.js';
 import User from '../models/user.model.js';
-import Product from '../models/product.model.js';
+import Product from '../modules/product/product.model.js';
 import Promotion from '../models/promotion.model.js';
 import Campaign from '../models/campaign.model.js';
 import { sendPromotionEmail } from '../utils/emailService.js';

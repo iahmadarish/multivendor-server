@@ -1,6 +1,6 @@
 import Order from '../models/order.model.js';
 import User from '../models/user.model.js';
-import Product from '../models/product.model.js';
+import Product from '../modules/product/product.model.js';
 import Category from '../models/Category.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 

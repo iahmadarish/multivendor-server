@@ -1,9 +1,8 @@
 
 
 import Cart from '../models/cart.model.js';
-import Product from '../models/product.model.js';
-// import Campaign from '../models/campaign.model.js';
-// import Promotion from '../models/promotion.model.js';
+import Product from '../modules/product/product.model.js';
+
 
 
 export const getCart = async (req, res, next) => {

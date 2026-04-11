@@ -23,7 +23,7 @@ import {
   searchProductsForAdmin,
   getAdminProductsOptimized,
   getRelatedProducts
-} from "../controllers/product.controller.js";
+} from "./product.controller.js";
 
 import { body } from "express-validator";
 import { protect, admin } from "../../middlewares/authMiddleware.js";

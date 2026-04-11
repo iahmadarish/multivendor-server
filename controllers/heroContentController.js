@@ -1,7 +1,5 @@
-// controllers/heroContentController.js
-
 import HeroContent from '../models/HeroContentModel.js';
-import asyncHandler from 'express-async-handler'; // ধরে নিলাম আপনি এটি ব্যবহার করছেন
+import asyncHandler from 'express-async-handler'; 
 
 // @desc    Get all active hero content, grouped by device type
 // @route   GET /api/v1/hero
