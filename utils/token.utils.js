@@ -1,6 +1,17 @@
 import crypto from "crypto";
 
 /**
+ * Generate a 6-digit numeric OTP for email verification
+ * @returns {Object} { otp, hashedOtp, expires }
+ */
+export const generateEmailOtp = () => {
+    const otp = String(crypto.randomInt(100000, 999999));
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    return { otp, hashedOtp, expires };
+};
+
+/**
  * Generate a secure random email verification token.
  * Returns both the raw token (to be emailed) and
  * a hashed version (stored in DB).

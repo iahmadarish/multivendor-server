@@ -50,9 +50,9 @@ const sellerSchema = new mongoose.Schema(
         isPhoneVerified: { type: Boolean, default: false },
         twoFactorEnabled: { type: Boolean, default: false },
 
-        // ─── Email Verification Token ─────────────────────────────
-        emailVerificationToken: { type: String, select: false },
-        emailVerificationExpires: { type: Date, select: false },
+        // ─── Email token with OTP ─────────────────────────
+        emailOtp: { type: String, select: false },
+        emailOtpExpires: { type: Date, select: false },
 
         // ─── Phone OTP ────────────────────────────────────────────
         phoneOtp: { type: String, select: false },
@@ -174,6 +174,18 @@ sellerSchema.index({ phone: 1 });
 sellerSchema.index({ shopName: 1 });
 sellerSchema.index({ status: 1 });
 
+// ─── VIRTUAL: isProfileComplete ────────────────────────────────
+sellerSchema.virtual("isProfileComplete").get(function () {
+    const hasBusinessInfo =
+        this.businessType && (this.businessType === "individual" || this.companyRegistrationNumber);
+
+    const hasFinancialInfo = this.payoutMethod && this.bankAccountNumber;
+
+    const hasStoreInfo = this.shopLogo || this.shopDescription;
+
+    return !!(hasBusinessInfo && hasFinancialInfo && hasStoreInfo);
+});
+
 // ─── Virtual: isActive ────────────────────────────────────────
 sellerSchema.virtual("isActive").get(function () {
     return this.status === "approved";
@@ -197,8 +209,10 @@ sellerSchema.methods.comparePassword = async function (candidatePassword) {
 sellerSchema.methods.toSafeObject = function () {
     const obj = this.toObject();
     delete obj.password;
-    delete obj.emailVerificationToken;
-    delete obj.emailVerificationExpires;
+    delete obj.emailOtp; // NEW
+    delete obj.emailOtpExpires; // NEW
+    // delete obj.emailVerificationToken;
+    // delete obj.emailVerificationExpires;
     delete obj.phoneOtp;
     delete obj.phoneOtpExpires;
     delete obj.passwordResetToken;
