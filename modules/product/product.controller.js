@@ -1,15 +1,15 @@
-import Product from "../models/product.model.js";
+import Product from "./product.model.js";
 import mongoose from "mongoose";
 import { validationResult } from "express-validator";
-import DynamicSection from "../models/DynamicSection.model.js";
-import AplusContent from "../models/AplusContent.model.js";
+import DynamicSection from "../../models/DynamicSection.model.js";
+import AplusContent from "../../models/AplusContent.model.js";
 
 import {
   uploadSingle,
   uploadMultiple,
   setUploadDir,
   deleteImageFile
-} from "../utils/upload.js";
+} from "../../utils/upload.js";
 
 
 

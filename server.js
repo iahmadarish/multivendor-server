@@ -2,12 +2,11 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
-import mongoose from "mongoose";
 import morgan from "morgan";
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import heroContentRoutes from "./routes/heroContentRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
-import productRoutes from "./routes/product.routes.js";
+import productRoutes from "./modules/product/product.routes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import cartRoutes from "./routes/cartRoutes.js";
@@ -32,6 +31,7 @@ import sellerAuthRoutes from "./routes/sellerAuth.routes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
+import connectDB from "./config/database.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -41,15 +41,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 const PORT = process.env.PORT || 5000;
 const API_VERSION = process.env.API_VERSION || "v1";
 
-const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.MONGO_URI);
-        console.log("✅ [DATABASE] MongoDB Connected");
-    } catch (err) {
-        console.error("Database Connection Failed:", err.message);
-        process.exit(1);
-    }
-};
+// Connect to MongoDB
 connectDB();
 
 app.use(helmet());

@@ -26,14 +26,14 @@ import {
 } from "../controllers/product.controller.js";
 
 import { body } from "express-validator";
-import { protect, admin } from "../middlewares/authMiddleware.js";
+import { protect, admin } from "../../middlewares/authMiddleware.js";
 
 
 import { 
   setUploadDir, 
   uploadSingle, 
   uploadMultiple 
-} from "../utils/upload.js";
+} from "../../utils/upload.js";
 
 const router = express.Router();
 
