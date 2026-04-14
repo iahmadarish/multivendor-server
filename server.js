@@ -45,7 +45,7 @@ const API_VERSION = process.env.API_VERSION || "v1";
 connectDB();
 
 app.use(helmet());
-const allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "https://zuzuba.com"];
+const allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "https://zuzuva.com"];
 
 app.use(
     cors({
