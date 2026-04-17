@@ -1,24 +1,20 @@
 import User from '../models/user.model.js';
 import { sendEmail } from '../utils/emailService.js';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken'; // 💡 jwt আমদানি করুন টোকেন তৈরি করার জন্য
+import jwt from 'jsonwebtoken'; 
 
-// ✅ Generate token response - এখন expiresDays প্যারামিটার নেবে
 const sendTokenResponse = (user, statusCode, res, expiresDays) => {
-  // 🚨 ফিক্স: টোকেন তৈরির সময় expiresIn ডাইনামিকভাবে ব্যবহার করুন
-  const expiresInSeconds = expiresDays * 24 * 60 * 60; // দিনের সংখ্যাকে সেকেন্ডে রূপান্তর করুন
+  const expiresInSeconds = expiresDays * 24 * 60 * 60; 
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-    expiresIn: expiresInSeconds // সেকেন্ডের হিসেবে টোকেন এক্সপায়ারি
+    expiresIn: expiresInSeconds 
   });
 
   const options = {
-    // কুকির মেয়াদকাল ডাইনামিক expiresDays অনুযায়ী সেট করুন
     expires: new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'Lax',
   };
-
   // Remove password from output
   const userResponse = user.toObject();
   delete userResponse.password;
@@ -71,13 +67,13 @@ export const register = async (req, res, next) => {
       password,
     });
 
-    console.log('✅ User created successfully:', user._id);
+    console.log(' User created successfully:', user._id);
 
     // Generate OTP for email verification
     const OTP = user.generateEmailVerificationOTP();
     await user.save({ validateBeforeSave: false });
 
-    console.log('📧 Generated OTP:', OTP);
+    console.log('Generated OTP:', OTP);
 
     // Send verification email
     try {
@@ -111,8 +107,6 @@ export const register = async (req, res, next) => {
         user.emailVerificationOTP = undefined;
         user.emailVerificationOTPExpire = undefined;
         await user.save();
-        
-        // Development-এ ডিফল্ট মেয়াদকাল সেট
         const defaultExpiresDays = process.env.JWT_COOKIE_EXPIRE || 1; 
         sendTokenResponse(user, 201, res, defaultExpiresDays);
       } else {
@@ -191,9 +185,6 @@ export const verifyEmail = async (req, res, next) => {
     await user.save();
 
     console.log('✅ Email verified successfully for:', user.email);
-
-    // Send token response (auto login after verification)
-    // টোকেন এক্সপায়ারির জন্য ডিফল্ট ১ দিন সেট
     const defaultExpiresDays = process.env.JWT_COOKIE_EXPIRE || 1; 
     sendTokenResponse(user, 200, res, defaultExpiresDays);
 
@@ -241,8 +232,6 @@ export const resendVerification = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     console.log('📧 Resending OTP to:', email, 'OTP:', OTP);
-
-    // Send verification email
     try {
       await sendEmail({
         email: user.email,
@@ -331,18 +320,13 @@ export const login = async (req, res, next) => {
 
     // Update login info
     await user.updateLoginInfo();
-
-    console.log('✅ Login successful for user:', user._id);
-
-    // 🚨 ফিক্স: টোকেন এক্সপায়ারির জন্য দিনের সংখ্যা সেট করুন
+    console.log(' Login successful for user:', user._id);
     let expiresDays;
     if (rememberMe) {
-      expiresDays = 30; // 30 days for remember me
+      expiresDays = 30;
     } else {
-      expiresDays = 1; // 1 day for normal login
+      expiresDays = 1;
     }
-    
-    // 🚨 ফিক্স: process.env পরিবর্তন না করে expiresDays প্যারামিটার পাস করুন
     sendTokenResponse(user, 200, res, expiresDays);
 
   } catch (error) {
@@ -451,7 +435,7 @@ export const resetPassword = async (req, res, next) => {
     user.resetPasswordOTPExpire = undefined;
     await user.save();
 
-    console.log('✅ Password reset successful for:', user.email);
+    console.log('Password reset successful for:', user.email);
 
     res.status(200).json({
       success: true,
@@ -459,7 +443,7 @@ export const resetPassword = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('❌ Reset password error:', error);
+    console.error('Reset password error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error during password reset',
@@ -494,7 +478,7 @@ export const updateProfile = async (req, res, next) => {
   try {
     const fieldsToUpdate = {
       name: req.body.name,
-      phoneNumber: req.body.phoneNumber, // User can add phone number later
+      phoneNumber: req.body.phoneNumber,
       profilePicture: req.body.profilePicture,
       dateOfBirth: req.body.dateOfBirth,
       gender: req.body.gender,
