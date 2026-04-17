@@ -45,7 +45,7 @@ const API_VERSION = process.env.API_VERSION || "v1";
 connectDB();
 
 app.use(helmet());
-const allowedOrigins = ['https://innoel.vercel.app/', 'http://localhost:5173', 'http://localhost:5174', 'https://sandbox.sslcommerz.com', 'https://securepay.sslcommerz.com', 'https://www.innoelbd.com', 'https://innoelbd.com', 'https://innoel.vercel.app', 'https://innoels.augmenticdigital.com',];
+const allowedOrigins = ['https://innoel.vercel.app/', 'http://localhost:5173', 'http://localhost:5174', 'https://zuzuva.com',];
 
 app.use(
     cors({
