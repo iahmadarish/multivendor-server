@@ -16,14 +16,7 @@ const SMTP_CONFIG = {
 
 const TARGET_EMAILS = [
     'im.ishaq.bd@gmail.com',
-    'office@rescuemarketing.co',
-    'bill@emulent.com',
-    'inquire@paulgregorymedia.com',
-    'paul@paulgregorymedia.com',
-    'deandra.henahan@gate39media.com',
-    'info@hostway.com',
-
-
+    'luxiquebd@gmail.com',
 ];
 
 const transporter = nodemailer.createTransport(SMTP_CONFIG);
@@ -33,675 +26,216 @@ const servicePromoTemplate = (clientName) => ({
     html: `
        <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CONQUERIC - Strategic Offshore Development Partnership Proposal</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Sans+Pro:wght@400;600;700&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conqueric E-commerce Solutions</title>
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  background: #eef2f7;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
 
-        body {
-            font-family: 'Inter', Arial, sans-serif;
-            line-height: 1.7;
-            color: #2D3748;
-            background-color: #F7FAFC;
-            padding: 20px;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
+.container {
+  max-width: 650px;
+  margin: 40px auto;
+  background: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+}
 
-        .email-container {
-            max-width: 680px;
-            margin: 0 auto;
-            background: #ffffff;
-            border-radius: 0;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            border: 1px solid #E2E8F0;
-        }
+.header {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #ffffff;
+  text-align: center;
+  padding: 35px 20px;
+}
 
-        /* Header Section - Professional Black Centered Design */
-        .header {
-            background-color: #000000;
-            color: #ffffff;
-            padding: 48px 30px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-            border-bottom: 4px solid #20C997;
-        }
+.header h1 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: 1px;
+}
 
-        .header-content {
-            max-width: 520px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 2;
-        }
+.header p {
+  margin-top: 8px;
+  font-size: 14px;
+  opacity: 0.8;
+}
 
-        .logo {
-            font-family: 'Source Sans Pro', sans-serif;
-            font-size: 36px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            margin-bottom: 8px;
-            color: #ffffff;
-            position: relative;
-            display: inline-block;
-        }
+.section {
+  padding: 28px 30px;
+}
 
-        .logo::after {
-            content: "";
-            position: absolute;
-            bottom: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 60px;
-            height: 3px;
-            background: #20C997;
-            border-radius: 2px;
-        }
+.section h2 {
+  color: #0f172a;
+  font-size: 20px;
+  margin-bottom: 12px;
+  border-left: 4px solid #2563eb;
+  padding-left: 10px;
+}
 
-        .tagline {
-            font-size: 14px;
-            font-weight: 400;
-            opacity: 0.85;
-            margin-bottom: 16px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
+.text {
+  color: #475569;
+  font-size: 15px;
+  line-height: 1.7;
+}
 
-        .subject-line {
-            font-size: 18px;
-            font-weight: 500;
-            opacity: 0.95;
-            margin-top: 20px;
-            line-height: 1.5;
-            color: #E2E8F0;
-        }
+.list {
+  margin-top: 12px;
+  padding-left: 18px;
+}
 
-        /* Main Content Area */
-        .content {
-            padding: 48px 40px;
-        }
+.list li {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #334155;
+}
 
-        .greeting {
-            color: #1A202C;
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 32px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #E2E8F0;
-        }
+.highlight-box {
+  background: #f1f5ff;
+  border-left: 4px solid #2563eb;
+  padding: 18px;
+  border-radius: 8px;
+  margin-top: 15px;
+}
 
-        .intro-text {
-            color: #4A5568;
-            font-size: 15px;
-            margin-bottom: 28px;
-            line-height: 1.8;
-        }
+.cta {
+  text-align: center;
+  padding: 35px 20px;
+  background: #f8fafc;
+}
 
-        .intro-text strong {
-            color: #1A202C;
-            font-weight: 600;
-        }
+.button {
+  display: inline-block;
+  margin-top: 15px;
+  background: #2563eb;
+  color: #ffffff;
+  padding: 14px 28px;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: 0.3s;
+}
 
-        /* Value Proposition */
-        .value-proposition {
-            background: #F8FAFC;
-            border: 1px solid #E2E8F0;
-            padding: 22px;
-            margin: 36px 0;
-            border-radius: 8px;
-            border: 1px solid #20C997;
-        }
+.button:hover {
+  background: #1d4ed8;
+}
 
-        .value-header {
-            color: #1A202C;
-            font-weight: 700;
-            font-size: 18px;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-        }
+.footer {
+  background: #0f172a;
+  color: #cbd5f5;
+  text-align: center;
+  padding: 25px;
+  font-size: 13px;
+}
 
-        .value-header::before {
-            content: "✓";
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 26px;
-            height: 26px;
-            background: #20C997;
-            color: white;
-            border-radius: 50%;
-            margin-right: 12px;
-            font-size: 14px;
-            font-weight: bold;
-        }
+.footer a {
+  color: #60a5fa;
+  text-decoration: none;
+}
 
-        .key-metrics {
-            list-style: none;
-            padding: 0;
-        }
+.footer p {
+  margin: 6px 0;
+}
 
-        .key-metrics li {
-            padding: 10px 0;
-            font-size: 15px;
-            color: #4A5568;
-            display: flex;
-            align-items: flex-start;
-            line-height: 1.6;
-        }
+.divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0 30px;
+}
 
-        .key-metrics li::before {
-            content: "•";
-            color: #20C997;
-            font-weight: bold;
-            font-size: 20px;
-            margin-right: 12px;
-            flex-shrink: 0;
-            line-height: 1;
-        }
-
-        /* Section Headers */
-        .section-header {
-            color: #1A202C;
-            font-size: 20px;
-            font-weight: 600;
-            margin: 44px 0 20px 0;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #E2E8F0;
-            position: relative;
-        }
-
-        .section-header::after {
-            content: "";
-            position: absolute;
-            bottom: -1px;
-            left: 0;
-            width: 80px;
-            height: 2px;
-            background: #20C997;
-        }
-
-        /* Technology Table */
-        .tech-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin: 28px 0;
-            font-size: 14px;
-            border-radius: 6px;
-            overflow: hidden;
-            border: 1px solid #E2E8F0;
-            background: #F8FAFC;
-        }
-
-        .tech-table th {
-            background: #1A202C;
-            color: #FFFFFF;
-            font-weight: 600;
-            padding: 18px 24px;
-            text-align: left;
-            border-bottom: 2px solid #20C997;
-            text-transform: uppercase;
-            font-size: 13px;
-            letter-spacing: 0.5px;
-        }
-
-        .tech-table td {
-            padding: 18px 24px;
-            border-bottom: 1px solid #E2E8F0;
-            vertical-align: top;
-            color: #4A5568;
-        }
-
-        .tech-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .domain-name {
-            font-weight: 600;
-            color: #1A202C;
-            font-size: 15px;
-            white-space: nowrap;
-        }
-
-        /* Engagement Models */
-        .engagement-models {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 24px;
-            margin: 28px 0;
-        }
-
-        .model-card {
-            background: #F8FAFC;
-            border: 1px solid #E2E8F0;
-            border-radius: 8px;
-            padding: 24px;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .model-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .model-number {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 32px;
-            height: 32px;
-            background: #20C997;
-            color: white;
-            border-radius: 50%;
-            font-weight: 700;
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
-
-        .model-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1A202C;
-            margin-bottom: 12px;
-        }
-
-        .model-desc {
-            font-size: 14px;
-            color: #4A5568;
-            line-height: 1.6;
-        }
-
-        /* Call to Action */
-        .cta-section {
-            text-align: center;
-            margin: 52px 0 32px 0;
-            padding: 40px;
-            background: linear-gradient(135deg, #1A202C 0%, #000000 100%);
-            border-radius: 8px;
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .cta-title {
-            margin-bottom: 16px;
-            font-size: 24px;
-            font-weight: 700;
-            position: relative;
-        }
-
-        .cta-desc {
-            margin-bottom: 28px;
-            font-size: 16px;
-            opacity: 0.9;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
-            line-height: 1.7;
-        }
-
-        .cta-button {
-            display: inline-block;
-            background: #20C997;
-            color: #ffffff;
-            padding: 16px 40px;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 16px;
-            box-shadow: 0 4px 12px rgba(32, 201, 151, 0.3);
-            transition: all 0.3s ease;
-            position: relative;
-            border: none;
-            cursor: pointer;
-            letter-spacing: 0.3px;
-            text-transform: uppercase;
-            font-size: 14px;
-            letter-spacing: 1px;
-        }
-
-        .cta-button:hover {
-            background-color: #17A2B8;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(32, 201, 151, 0.4);
-        }
-
-        /* Footer - Professional Black Centered */
-        .footer {
-            background-color: #000000;
-            color: #E2E8F0;
-            padding: 12px 30px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-            border-top: 4px solid #20C997;
-        }
-
-        .footer-content {
-            max-width: 520px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 2;
-        }
-
-        .contact-info {
-            margin-bottom: 24px;
-        }
-
-        .contact-info a {
-            color: #20C997;
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-
-        .contact-info a:hover {
-            color: #ffffff;
-            text-decoration: underline;
-        }
-
-        .signature {
-            margin-top: 32px;
-            padding-top: 24px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .signature-name {
-            font-weight: 700;
-            color: #ffffff;
-            margin-bottom: 4px;
-            font-size: 16px;
-            letter-spacing: 0.2px;
-        }
-
-        .signature-title {
-            font-size: 14px;
-            opacity: 0.85;
-            margin-bottom: 4px;
-        }
-
-        .company-info {
-            margin-top: 24px;
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 24px;
-        }
-
-        .company-info a {
-            display: inline-flex;
-            align-items: center;
-            color: #A0AEC0;
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.2s;
-        }
-
-        .company-info a:hover {
-            color: #20C997;
-        }
-
-        .icon {
-            margin-right: 8px;
-            font-size: 14px;
-        }
-
-        .copyright {
-            margin-top: 32px;
-            font-size: 12px;
-            opacity: 0.6;
-            color: #A0AEC0;
-        }
-
-        /* Mobile Optimizations */
-        @media (max-width: 600px) {
-            body {
-                padding: 10px !important;
-            }
-
-            .email-container {
-                border-radius: 0 !important;
-            }
-
-            .content,
-            .header,
-            .footer {
-                padding: 32px 20px !important;
-            }
-
-            .header,
-            .footer {
-                padding: 40px 20px !important;
-            }
-
-            .tech-table,
-            .tech-table th,
-            .tech-table td {
-                font-size: 13px !important;
-                display: block !important;
-                width: 100% !important;
-                text-align: left !important;
-            }
-
-            .tech-table th {
-                background: #1A202C;
-                display: block;
-            }
-
-            .tech-table tr {
-                margin-bottom: 15px;
-                display: block;
-                border: 1px solid #E2E8F0 !important;
-                border-radius: 6px;
-                overflow: hidden;
-            }
-
-            .tech-table td {
-                border-bottom: 1px solid #E2E8F0 !important;
-                display: block;
-                padding: 16px 20px !important;
-            }
-
-            .domain-name {
-                font-weight: 700;
-                background: #F8FAFC;
-                padding: 8px 12px !important;
-                margin: -16px -20px 12px -20px !important;
-                border-bottom: 1px solid #E2E8F0;
-            }
-
-            .engagement-models {
-                grid-template-columns: 1fr;
-                gap: 16px;
-            }
-
-            .cta-section {
-                padding: 32px 20px !important;
-            }
-
-            .cta-button {
-                display: block;
-                padding: 14px 20px !important;
-            }
-
-            .company-info {
-                flex-direction: column;
-                gap: 12px;
-                align-items: center;
-            }
-        }
-    </style>
+</style>
 </head>
 
 <body>
-    <div class="email-container">
-        <!-- Professional Black Header -->
-        <div class="header">
-            <div class="header-content">
-                <div class="logo">CONQUERIC</div>
-                <div class="tagline">Terning Ideas into impact</div>
-                <div style="font-size: 12px; border-bottom: 1px solid white;" >Accelerated Engineering Delivery & Cost Optimization
-                </div>
-            </div>
-        </div>
 
-        <!-- Main Content -->
-        <div class="content">
-            <h2 class="greeting">Dear Recipients,</h2>
+<div class="container">
 
-            <p class="intro-text">
-                I am writing on behalf of <a  href="https://conqueric.com/"> <strong style="color: #018397;">CONQUERIC</strong></a> to propose a strategic offshore development
-                partnership designed to address your organization's technical capacity requirements while achieving
-                significant operational efficiencies. Our model is engineered to seamlessly augment your existing teams
-                with elite engineering talent from Bangladesh.
-            </p>
+<div class="header">
+  <h1>Conqueric</h1>
+  <p>Complete E-commerce Web Solutions</p>
+</div>
 
-            <div class="value-proposition">
-                <p style="color:#018397" class="value-header">Strategic Advantages of Our Partnership</p>
-                <ul class="key-metrics">
-                    <li> Access to senior engineering talent at 40-60% reduced
-                        operational costs compared to Western markets</li>
-                    <li> 4-6 hours of daily overlap with European time zones
-                        enabling real-time collaboration</li>
-                    <li>Rapid team scaling capabilities for product launches,
-                        feature sprints, or maintenance cycles</li>
-                    <li>Rigorous engineering standards with comprehensive code
-                        reviews and automated testing protocols</li>
-                </ul>
-            </div>
+<div class="section">
+  <p class="text">
+    Your business is already performing great through Facebook and offline channels. 
+    Now it's time to scale smarter with a strong digital foundation.
+  </p>
 
-            <p class="intro-text">
-                We have analyzed current market demands and understand the pressure to deliver innovative digital
-                solutions while maintaining fiscal responsibility. Our specialized development teams are proficient in
-                modern technology stacks and agile methodologies, ensuring seamless integration with your existing
-                workflows.
-            </p>
+  <div class="highlight-box">
+    Moving to your own website or mobile app ensures long-term growth, stability, and full control over your business.
+  </div>
+</div>
 
-            <h3 class="section-header">Core Technical Competencies</h3>
+<div class="divider"></div>
 
-            <table class="tech-table">
-                <tr>
-                    <th width="30%">Development Domain</th>
-                    <th width="70%">Technical Stack & Specializations</th>
-                </tr>
-                <tr>
-                    <td class="domain-name">Frontend Engineering</td>
-                    <td>React.js ecosystem (Next.js, Gatsby), Vue.js (Nuxt.js), TypeScript, Progressive Web Apps (PWA),
-                        Headless CMS integration (Strapi, Contentful), Accessibility compliance (WCAG 2.1)</td>
-                </tr>
-                <tr>
-                    <td class="domain-name">Backend & API Development</td>
-                    <td>Node.js (NestJS, Express), Python (Django, FastAPI), Microservices architecture, RESTful &
-                        GraphQL API design, Serverless computing (AWS Lambda, Azure Functions), Database optimization
-                    </td>
-                </tr>
-                <tr>
-                    <td class="domain-name">DevOps & Cloud Infrastructure</td>
-                    <td>CI/CD pipeline development (GitLab, GitHub Actions), Containerization (Docker, Kubernetes),
-                        Cloud platforms (AWS, Azure, GCP), Infrastructure as Code (Terraform, CloudFormation),
-                        Monitoring & observability</td>
-                </tr>
-            </table>
+<div class="section">
+  <h2>Why You Need Your Own Platform</h2>
+  <ul class="list">
+    <li><b>Stronger Brand Authority</b> — Build trust instantly with a professional presence</li>
+    <li><b>Own Your Customer Data</b> — Reduce future marketing costs</li>
+    <li><b>Full Business Control</b> — No dependency on social platforms</li>
+    <li><b>Automation</b> — Faster order processing & management</li>
+  </ul>
+</div>
 
-            <h3 class="section-header">Flexible Engagement Frameworks</h3>
+<div class="divider"></div>
 
-            <p class="intro-text">
-                We offer three distinct engagement models designed to align with your specific operational requirements
-                and project lifecycle stages:
-            </p>
+<div class="section">
+  <h2>Our Core E-commerce Solutions</h2>
+  <ul class="list">
+    <li>Custom Website Design & Development</li>
+    <li>Modern UI/UX (Mobile Optimized)</li>
+    <li>Product & Inventory Management</li>
+    <li>Secure Payment Integration</li>
+    <li>Order & Shipping Automation</li>
+    <li>SEO & Speed Optimization</li>
+    <li>Admin Dashboard</li>
+    <li>API & Third-party Integration</li>
+  </ul>
+</div>
 
-            <div class="engagement-models">
-                <div class="model-card">
-                    <div class="model-number">1</div>
-                    <div class="model-title">Dedicated Development Team</div>
-                    <div class="model-desc">
-                        Full-time engineers integrated into your organization, working exclusively on your projects with
-                        direct oversight and daily collaboration.
-                    </div>
-                </div>
+<div class="divider"></div>
 
-                <div class="model-card">
-                    <div class="model-number">2</div>
-                    <div class="model-title">Project-Based Engagement</div>
-                    <div class="model-desc">
-                        Fixed-scope, fixed-timeline delivery for specific projects or MVPs with clearly defined
-                        deliverables and success metrics.
-                    </div>
-                </div>
+<div class="section">
+  <h2>Growth & Marketing Support</h2>
+  <ul class="list">
+    <li>Facebook & Google Ads Setup</li>
+    <li>Pixel, GA4 & Conversion Tracking</li>
+    <li>Fake Order Reduction System</li>
+    <li>Remarketing Strategy</li>
+    <li>WhatsApp & Email Automation</li>
+  </ul>
+</div>
 
-                <div class="model-card">
-                    <div class="model-number">3</div>
-                    <div class="model-title">Hybrid Support Model</div>
-                    <div class="model-desc">
-                        Combination of dedicated resources and hourly support for maintenance, enhancements, and ongoing
-                        technical support.
-                    </div>
-                </div>
+<div class="divider"></div>
 
-                <div class="model-card">
-                    <div class="model-number">4</div>
-                    <div class="model-title">On-Demand & Hourly Engagement</div>
-                    <div class="model-desc">
-                        Flexible, pay-as-you-go development and consulting services ideal for quick fixes, feature
-                        upgrades, audits, or expert technical guidance.
-                    </div>
-                </div>
-            </div>
+<div class="cta">
+  <h2>Ready to Scale Your Business?</h2>
+  <p class="text">
+    We combine modern technology with data-driven strategy to build platforms that convert visitors into paying customers.
+  </p>
 
+  <a href="https://conqueric.com" class="button">Visit Website</a>
+</div>
 
-            <div class="cta-section">
-                <h3 class="cta-title">Schedule a Technical Consultation</h3>
-                <p class="cta-desc">I would welcome the opportunity to discuss how CONQUERIC can support your specific
-                    technical objectives. Let's schedule a 30-minute discovery call to explore potential collaboration.
-                </p>
-                <a href="mailto:info@conqueric.com?subject=Technical%20Consultation%20Request%20-%20CONQUERIC"
-                    class="cta-button">Request Discovery Call</a>
-            </div>
-        </div>
+<div class="footer">
+  <p><b>Conqueric</b></p>
+  <p>🌐 <a href="https://conqueric.com">conqueric.com</a></p>
+  <p>📧 info@conqueric.com</p>
+  <p>📞 +880 1568202839</p>
+</div>
 
-        <!-- Professional Black Footer -->
-        <div class="footer">
-            <div class="footer-content">
+</div>
 
-
-                <div class="signature">
-                    <p class="signature-name">Ishaq Ahmad</p>
-                    <p class="signature-title">Business Development Director</p>
-                    <p class="signature-title">CONQUERIC</p>
-                </div>
-
-                <div class="company-info">
-                    <a href="mailto:info@conqueric.com">
-                        <span class="icon">✉</span> info@conqueric.com
-                    </a>
-                    <a href="tel:+8801511521362">
-                        <span class="icon">📞</span> +880 1511 521362
-                    </a>
-                    <a href="http://conqueric.com">
-                        <span class="icon">🌐</span> conqueric.com
-                    </a>
-                </div>
-
-                <div class="copyright">
-                    © 2025 CONQUERIC. All rights reserved. | Strategic Offshore Development Partnership
-                </div>
-            </div>
-        </div>
-    </div>
 </body>
-
 </html>
+
     `,
 });
 
