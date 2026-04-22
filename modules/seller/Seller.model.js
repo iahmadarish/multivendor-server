@@ -162,14 +162,14 @@ const sellerSchema = new mongoose.Schema(
         },
         socialLinks: [{ type: String, trim: true }],
 
-        // ─── Seller Performance ───────────────────────────────────
+
         rating: { type: Number, default: 0, min: 0, max: 5 },
         totalOrders: { type: Number, default: 0, min: 0 },
         cancellationRate: { type: Number, default: 0, min: 0, max: 100 },
         returnRate: { type: Number, default: 0, min: 0, max: 100 },
         lateShipmentRate: { type: Number, default: 0, min: 0, max: 100 },
 
-        // ─── Compliance & Agreement ───────────────────────────────
+
         termsAccepted: {
             type: Boolean,
             required: [true, "You must accept the terms and conditions"],
@@ -178,6 +178,7 @@ const sellerSchema = new mongoose.Schema(
                 message: "Terms and conditions must be accepted",
             },
         },
+
         privacyPolicyAccepted: {
             type: Boolean,
             required: [true, "You must accept the privacy policy"],
@@ -186,9 +187,9 @@ const sellerSchema = new mongoose.Schema(
                 message: "Privacy policy must be accepted",
             },
         },
+
         sellerAgreementAcceptedAt: { type: Date },
 
-        // ─── Account Status ───────────────────────────────────────
         status: {
             type: String,
             enum: {
