@@ -8,7 +8,7 @@ import {
     updateUserRole,
     deleteUser,
     updateUserStatus
-} from '../controllers/adminController.js';
+} from '../modules/admin/adminController.js';
 // import { 
 //     getOrders, 
 //     getOrderByIdAdmin, 

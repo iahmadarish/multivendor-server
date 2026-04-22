@@ -1,8 +1,8 @@
-import Order from '../modules/order/order.model.js';
-import User from '../models/user.model.js';
-import Product from '../modules/product/product.model.js';
-import Category from '../models/Category.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
+import Order from '../order/order.model.js';
+import User from '../../models/user.model.js';
+import Product from '../product/product.model.js';
+import Category from '../category/Category.js';
+import { asyncHandler } from '../../utils/asyncHandler.js';
 
 // @desc    Get all dashboard analytics
 // @route   GET /api/v1/admin/analytics

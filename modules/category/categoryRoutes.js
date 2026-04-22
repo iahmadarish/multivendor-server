@@ -8,8 +8,8 @@ import {
   deleteCategory,
   getCategoryPath,
   deleteCategoryImage,
-} from "../controllers/categoryController.js"
-import { uploadCategoryImage } from "../utils/uploadCategoryImage.js"
+} from "./categoryController.js"
+import { uploadCategoryImage } from "../../utils/uploadCategoryImage.js"
 
 const router = express.Router()
 

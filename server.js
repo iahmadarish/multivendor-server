@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 import morgan from "morgan";
 import { errorHandler, notFound } from "./middleware/errorMiddleware.js";
 import heroContentRoutes from "./routes/heroContentRoutes.js";
-import categoryRoutes from "./routes/categoryRoutes.js";
+import categoryRoutes from "./modules/category/categoryRoutes.js";
 import productRoutes from "./modules/product/product.routes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import authRoutes from "./routes/authRoutes.js";

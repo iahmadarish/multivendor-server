@@ -1,14 +1,14 @@
-import Order from '../modules/order/order.model.js';
-import Product from '../modules/product/product.model.js';
-import Category from '../models/Category.js';
-import User from '../models/user.model.js';
+import Order from '../order/order.model.js';
+import Product from '../product/product.model.js';
+import Category from '../category/Category.js';
+import User from '../../models/user.model.js';
 
 // @desc    Get comprehensive analytics dashboard data
 // @route   GET /api/v1/admin/analytics/dashboard
 // @access  Private/Admin
 export const getDashboardAnalytics = async (req, res, next) => {
   try {
-    const { period = 'monthly' } = req.query; // daily, weekly, monthly, yearly
+    const { period = 'monthly' } = req.query; 
     
     // Date ranges based on period
     const getDateRange = () => {
@@ -63,7 +63,7 @@ export const getDashboardAnalytics = async (req, res, next) => {
         $group: { 
           _id: null, 
           totalRevenue: { $sum: '$totalPrice' },
-          totalCost: { $sum: '$itemsPrice' } // Assuming itemsPrice represents cost
+          totalCost: { $sum: '$itemsPrice' } 
         } 
       }
     ]);

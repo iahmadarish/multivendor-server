@@ -3,7 +3,7 @@ import {
   getNavbarConfig,
   updateNavbarConfig,
   getAvailableCategories
-} from "../controllers/navbarController.js";
+} from "../modules/navbar/navbarController.js";
 
 const router = express.Router();
 

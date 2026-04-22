@@ -1,5 +1,5 @@
-import NavbarConfig from '../models/NavbarConfig.js';
-import Category from '../models/Category.js';
+import NavbarConfig from '../../models/NavbarConfig.js';
+import Category from '../category/Category.js';
 
 // Get active navbar configuration
 export const getNavbarConfig = async (req, res) => {

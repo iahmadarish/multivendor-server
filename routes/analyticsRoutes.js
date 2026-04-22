@@ -2,7 +2,7 @@ import express from 'express';
 import { 
   getDashboardAnalytics, 
   getSalesReport 
-} from '../controllers/analyticsController.js';
+} from '../modules/admin/analyticsController.js';
 import { protect, admin } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();

@@ -1,9 +1,9 @@
 
 
-import Category from "../models/Category.js"
-import { asyncHandler } from "../utils/asyncHandler.js"
-import { APIFeatures } from "../utils/apiFeatures.js"
-import { deleteImageFile, getImageUrl, getFilePathFromUrl } from "../utils/uploadCategoryImage.js"
+import Category from "./Category.js"
+import { asyncHandler } from "../../utils/asyncHandler.js"
+import { APIFeatures } from "../../utils/apiFeatures.js"
+import { deleteImageFile, getImageUrl, getFilePathFromUrl } from "../../utils/uploadCategoryImage.js"
 
 
 // @desc    Get all categories with tree structure

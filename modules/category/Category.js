@@ -1,5 +1,5 @@
 import mongoose from "mongoose"
-import { makeSlug } from "../utils/makeSlug.js"
+import { makeSlug } from "../../utils/makeSlug.js"
 
 const categorySchema = new mongoose.Schema(
   {
