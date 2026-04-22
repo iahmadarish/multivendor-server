@@ -1,4 +1,4 @@
-// controllers/sellerOnboarding.controller.js (NEW FILE)
+
 
 import Seller from "./Seller.model.js";
 

@@ -49,7 +49,7 @@ export const registerSeller = async (req, res, next) => {
             });
         }
 
-        // ✅ Generate email OTP instead of token
+        // Generate email OTP instead of token
         const { otp, hashedOtp, expires } = generateEmailOtp();
 
         // Create seller
@@ -63,11 +63,11 @@ export const registerSeller = async (req, res, next) => {
             privacyPolicyAccepted:
                 privacyPolicyAccepted === "true" || privacyPolicyAccepted === true,
             sellerAgreementAcceptedAt: new Date(),
-            emailOtp: hashedOtp, // ✅ Use OTP field
-            emailOtpExpires: expires, // ✅ Use OTP expiry
+            emailOtp: hashedOtp, 
+            emailOtpExpires: expires, 
         });
 
-        // ✅ Send real OTP via email
+        // Send real OTP via email
         await sendEmailOtp(email, otp, fullName);
 
         return res.status(201).json({
@@ -115,7 +115,7 @@ export const loginSeller = async (req, res, next) => {
             });
         }
 
-        // ✅ NEW: Block if email not verified
+        // NEW: Block if email not verified
         if (!seller.isEmailVerified) {
             return res.status(403).json({
                 success: false,
@@ -145,7 +145,7 @@ export const loginSeller = async (req, res, next) => {
             data: {
                 seller: seller.toSafeObject(),
                 accessToken,
-                isProfileComplete: seller.isProfileComplete, // ✅ Send profile completion status
+                isProfileComplete: seller.isProfileComplete, // Send profile completion status
             },
         });
     } catch (error) {

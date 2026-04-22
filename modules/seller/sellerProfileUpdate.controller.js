@@ -279,7 +279,6 @@ export const requestStoreUpdate = async (req, res, next) => {
         });
 
         await seller.save({ validateBeforeSave: false });
-
         return res.status(202).json({
             success: true,
             message:
@@ -302,10 +301,10 @@ export const requestStoreUpdate = async (req, res, next) => {
 export const requestIdentityUpdate = async (req, res, next) => {
     try {
         const allowedFields = [
-            "identityType",       // "nid" | "passport"
-            "identityNumber",     // NID number বা Passport number
-            "identityFrontImage", // URL (Cloudinary / S3)
-            "identityBackImage",  // URL — NID back, passport এ optional
+            "identityType",  
+            "identityNumber",   
+            "identityFrontImage", 
+            "identityBackImage",  
         ];
 
         const updates = {};
@@ -342,14 +341,12 @@ export const requestIdentityUpdate = async (req, res, next) => {
         }
 
         seller.isIdentityVerified = false;
-
         seller.pendingUpdates.push({
             section: "identity",
             data: updates,
         });
 
         await seller.save({ validateBeforeSave: false });
-
         return res.status(202).json({
             success: true,
             message:
@@ -435,9 +432,7 @@ export const getMyPendingUpdates = async (req, res, next) => {
 export const cancelPendingUpdate = async (req, res, next) => {
     try {
         const { updateId } = req.params;
-
         const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
-
         const update = seller.pendingUpdates.id(updateId);
 
         if (!update) {
@@ -457,7 +452,6 @@ export const cancelPendingUpdate = async (req, res, next) => {
         // Mongoose subdocument remove
         update.deleteOne();
         await seller.save({ validateBeforeSave: false });
-
         return res.status(200).json({
             success: true,
             message: "Pending update request cancelled successfully.",

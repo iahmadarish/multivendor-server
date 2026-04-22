@@ -20,7 +20,7 @@ import {
     getOnboardingStatus,
 } from "./sellerOnboarding.controller.js";
 
-// ─── নতুন: Profile Update (pending → admin approval) ─────────
+// Profile Update (pending → admin approval) ─────────
 import {
     requestProfileUpdate,
     requestBusinessUpdate,
@@ -42,7 +42,6 @@ import {
     financialInfoRules,
     logisticsInfoRules,
     storeInfoRules,
-    // নতুন validators
     updateProfileRules,
     updateBusinessRules,
     updateFinancialRules,
@@ -88,7 +87,7 @@ router.get("/onboarding/status", protectSeller, getOnboardingStatus);
 //  (Post-onboarding update — goes to pending, needs admin approval)
 // ============================================================
 
-// Seller তার pending update গুলো দেখতে ও cancel করতে পারবে
+// Seller pending update 
 router.get("/profile/pending-updates", protectSeller, getMyPendingUpdates);
 router.delete("/profile/pending-updates/:updateId", protectSeller, cancelPendingUpdate);
 
