@@ -1,135 +1,162 @@
-// controllers/product.controller.js
+import fs from "fs";
 import Product from "./product.model.js";
 import Category from "../category/Category.js";
-import { validateProductInput } from "../../validators/product.validator.js";
 import { deleteFile, getFileInfo } from "../../config/multer.config.js";
-import fs from "fs";
+import {
+    validateProductInput,
+    validateProductUpdateInput,
+    validateStockUpdate,
+    validateBulkAction,
+    validateVariantUpdate,
+} from "../../validators/product.validator.js";
+import { makeSlug } from "../../utils/makeSlug.js";
 
-// Create Product
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Clean up uploaded files (used on validation/error)
+ */
+const cleanupFiles = (files) => {
+    if (!files) return;
+    Object.values(files)
+        .flat()
+        .forEach((file) => {
+            if (file.path && fs.existsSync(file.path)) {
+                fs.unlinkSync(file.path);
+            }
+        });
+};
+
+/**
+ * Calculate effectivePrice from price + discount
+ */
+const calcEffectivePrice = (priceAmount, discount) => {
+    if (!discount || discount.type === "none" || !discount.value) return priceAmount;
+    if (discount.type === "percentage") {
+        return Math.round(priceAmount * (1 - discount.value / 100) * 100) / 100;
+    }
+    if (discount.type === "fixed") {
+        return Math.round(Math.max(0, priceAmount - discount.value) * 100) / 100;
+    }
+    return priceAmount;
+};
+
+/**
+ * Build sort object from query param
+ */
+const buildSort = (sortBy) => {
+    const sortMap = {
+        newest: { createdAt: -1 },
+        oldest: { createdAt: 1 },
+        price_asc: { "price.amount": 1 },
+        price_desc: { "price.amount": -1 },
+        sales: { "analytics.salesCount": -1 },
+        stock_asc: { stock: 1 },
+        stock_desc: { stock: -1 },
+        rating: { "rating.average": -1 },
+        views: { "analytics.views": -1 },
+    };
+    return sortMap[sortBy] || { createdAt: -1 };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CREATE PRODUCT
+//  POST /seller/products
+// ─────────────────────────────────────────────────────────────────────────────
 export const createProduct = async (req, res) => {
+    const files = req.files;
     try {
         const productData = JSON.parse(req.body.data || "{}");
         const seller = req.seller;
-        const files = req.files;
 
-        // Validate input
-        const validationError = validateProductInput(productData);
-        if (validationError) {
-            // Clean up uploaded files if validation fails
-            if (files) {
-                Object.values(files)
-                    .flat()
-                    .forEach((file) => {
-                        if (file.path && fs.existsSync(file.path)) {
-                            fs.unlinkSync(file.path);
-                        }
-                    });
-            }
+        // ── Validation ──────────────────────────────────────────────────────
+        const validationErrors = validateProductInput(productData);
+        if (validationErrors) {
+            cleanupFiles(files);
             return res.status(400).json({
                 success: false,
                 message: "Validation failed",
-                errors: validationError,
+                errors: validationErrors,
             });
         }
 
-        // Check if category exists
+        // ── Category check ───────────────────────────────────────────────────
         const category = await Category.findById(productData.category);
         if (!category) {
-            return res.status(404).json({
-                success: false,
-                message: "Category not found",
-            });
+            cleanupFiles(files);
+            return res.status(404).json({ success: false, message: "Category not found" });
         }
 
-        // Check SKU uniqueness
-        if (productData.sku) {
-            const existingProduct = await Product.findOne({ sku: productData.sku });
-            if (existingProduct) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Product SKU already exists",
-                });
+        if (productData.subCategory) {
+            const subCategory = await Category.findById(productData.subCategory);
+            if (!subCategory) {
+                cleanupFiles(files);
+                return res.status(404).json({ success: false, message: "Sub-category not found" });
             }
         }
 
-        // Process thumbnail
-        let thumbnail = null;
-        if (files?.thumbnail && files.thumbnail[0]) {
+        // ── SKU uniqueness ───────────────────────────────────────────────────
+        if (productData.sku) {
+            const skuExists = await Product.findOne({ sku: productData.sku });
+            if (skuExists) {
+                cleanupFiles(files);
+                return res.status(400).json({ success: false, message: "SKU already exists" });
+            }
+        }
+
+        // ── Thumbnail ────────────────────────────────────────────────────────
+        let thumbnail;
+        if (files?.thumbnail?.[0]) {
             thumbnail = getFileInfo(files.thumbnail[0]);
         } else if (productData.thumbnailUrl) {
-            thumbnail = {
-                url: productData.thumbnailUrl,
-                alt: productData.title,
-            };
+            thumbnail = { url: productData.thumbnailUrl, alt: productData.title };
         } else {
-            return res.status(400).json({
-                success: false,
-                message: "Product thumbnail is required",
-            });
+            cleanupFiles(files);
+            return res.status(400).json({ success: false, message: "Product thumbnail is required" });
         }
 
-        // Process gallery images
-        let images = [];
-        if (files?.images && files.images.length > 0) {
-            images = files.images.map((file, index) => ({
-                ...getFileInfo(file),
-                alt: `${productData.title} - Image ${index + 1}`,
-                sortOrder: index,
-            }));
-        }
+        // ── Gallery images ───────────────────────────────────────────────────
+        const images = (files?.images || []).map((file, index) => ({
+            ...getFileInfo(file),
+            alt: `${productData.title} - Image ${index + 1}`,
+            sortOrder: index,
+        }));
 
-        // Process variant images if any
-        let variantImagesMap = {};
-        if (files?.variantImages) {
-            // Group variant images by variant index or SKU
-            files.variantImages.forEach((file, index) => {
-                const variantKey = file.fieldname.match(/variantImages\[(\d+)\]/)?.[1] || index;
-                if (!variantImagesMap[variantKey]) variantImagesMap[variantKey] = [];
-                variantImagesMap[variantKey].push(getFileInfo(file));
-            });
-        }
+        // ── Variant images (grouped by index) ────────────────────────────────
+        const variantImagesMap = {};
+        (files?.variantImages || []).forEach((file, index) => {
+            const key = file.fieldname.match(/variantImages\[(\d+)\]/)?.[1] ?? index;
+            if (!variantImagesMap[key]) variantImagesMap[key] = [];
+            variantImagesMap[key].push(getFileInfo(file));
+        });
 
-        // Generate variants if hasVariants is true
+        // ── Variants ─────────────────────────────────────────────────────────
         let variants = [];
+        let parsedVariantOptions = [];
         if (productData.hasVariants && productData.variantOptions) {
-            const variantOptions =
+            parsedVariantOptions =
                 typeof productData.variantOptions === "string"
                     ? JSON.parse(productData.variantOptions)
                     : productData.variantOptions;
 
-            variants = Product.generateVariantCombinations(variantOptions, {
+            variants = Product.generateVariantCombinations(parsedVariantOptions, {
                 sku: productData.sku,
-                price: productData.price || { amount: 0, currency: "BDT" },
+                price: productData.price,
                 discount: productData.discount,
             });
 
-            // Assign variant images if provided
             variants.forEach((variant, idx) => {
-                if (variantImagesMap[idx] && variantImagesMap[idx].length > 0) {
-                    variant.images = variantImagesMap[idx];
-                }
+                if (variantImagesMap[idx]) variant.images = variantImagesMap[idx];
             });
         }
 
-        // Calculate discount effective price
-        let discountEffectivePrice = productData.price?.amount || 0;
-        if (
-            productData.discount &&
-            productData.discount.type !== "none" &&
-            productData.discount.value > 0
-        ) {
-            if (productData.discount.type === "percentage") {
-                discountEffectivePrice =
-                    productData.price.amount * (1 - productData.discount.value / 100);
-            } else if (productData.discount.type === "fixed") {
-                discountEffectivePrice = Math.max(
-                    0,
-                    productData.price.amount - productData.discount.value,
-                );
-            }
-        }
+        // ── Effective price ──────────────────────────────────────────────────
+        const effectivePrice = calcEffectivePrice(
+            productData.price?.amount ?? 0,
+            productData.discount,
+        );
 
-        // Create product
+        // ── Build document ───────────────────────────────────────────────────
         const product = new Product({
             title: productData.title,
             shortDescription: productData.shortDescription,
@@ -140,21 +167,13 @@ export const createProduct = async (req, res) => {
             brandName: productData.brandName,
             category: productData.category,
             subCategory: productData.subCategory || null,
-            tags: productData.tags || [],
-            price: {
-                amount: productData.price.amount,
-                currency: productData.price.currency || "BDT",
-            },
-            compareAtPrice: productData.compareAtPrice
-                ? {
-                      amount: productData.compareAtPrice.amount,
-                      currency: productData.compareAtPrice.currency || "BDT",
-                  }
-                : null,
+            tags: productData.tags ? [...new Set(productData.tags)] : [],
+            price: { amount: productData.price.amount, currency: productData.price.currency || "BDT" },
+            compareAtPrice: productData.compareAtPrice || null,
             discount: {
                 type: productData.discount?.type || "none",
                 value: productData.discount?.value || 0,
-                effectivePrice: discountEffectivePrice,
+                effectivePrice,
                 startDate: productData.discount?.startDate,
                 endDate: productData.discount?.endDate,
             },
@@ -164,15 +183,11 @@ export const createProduct = async (req, res) => {
             backorderAllowed: productData.backorderAllowed || false,
             minOrderQuantity: productData.minOrderQuantity || 1,
             maxOrderQuantity: productData.maxOrderQuantity || 0,
-            thumbnail: thumbnail,
-            images: images,
+            thumbnail,
+            images,
             hasVariants: productData.hasVariants || false,
-            variantOptions: productData.hasVariants
-                ? typeof productData.variantOptions === "string"
-                    ? JSON.parse(productData.variantOptions)
-                    : productData.variantOptions
-                : [],
-            variants: variants,
+            variantOptions: productData.hasVariants ? parsedVariantOptions : [],
+            variants,
             attributes: productData.attributes || [],
             delivery: {
                 weight: productData.delivery?.weight || 0,
@@ -186,26 +201,23 @@ export const createProduct = async (req, res) => {
             warrantyInfo: productData.warrantyInfo,
             countryOfOrigin: productData.countryOfOrigin,
             seo: {
-                metaTitle: productData.seo?.metaTitle || productData.title.slice(0, 60),
-                metaDescription:
-                    productData.seo?.metaDescription || productData.shortDescription?.slice(0, 160),
-                keywords: productData.seo?.keywords || productData.tags,
+                metaTitle: productData.seo?.metaTitle || productData.title.slice(0, 70),
+                metaDescription: productData.seo?.metaDescription || productData.shortDescription?.slice(0, 160) || "",
+                keywords: productData.seo?.keywords || productData.tags || [],
                 canonicalUrl: productData.seo?.canonicalUrl,
             },
             visibility: productData.visibility || "visible",
-            status: productData.status || "draft",
+            status: productData.publishImmediately ? "pending_review" : (productData.status || "draft"),
             availableFrom: productData.availableFrom,
             availableTo: productData.availableTo,
             isTaxable: productData.isTaxable !== false,
             taxRate: productData.taxRate || 0,
             createdBy: seller._id,
             creatorModel: "Seller",
+            lastModifiedBy: seller._id,
+            lastModifiedByModel: "Seller",
             metadata: productData.metadata || {},
         });
-
-        if (productData.publishImmediately) {
-            product.status = "pending_review";
-        }
 
         await product.save();
 
@@ -215,19 +227,8 @@ export const createProduct = async (req, res) => {
             data: product,
         });
     } catch (error) {
-        console.error("Product creation error:", error);
-
-        // Clean up uploaded files on error
-        if (req.files) {
-            Object.values(req.files)
-                .flat()
-                .forEach((file) => {
-                    if (file.path && fs.existsSync(file.path)) {
-                        fs.unlinkSync(file.path);
-                    }
-                });
-        }
-
+        cleanupFiles(files);
+        console.error("createProduct error:", error);
         return res.status(500).json({
             success: false,
             message: "Failed to create product",
@@ -236,231 +237,101 @@ export const createProduct = async (req, res) => {
     }
 };
 
-// Update Product
-export const updateProduct = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const updateData = JSON.parse(req.body.data || "{}");
-        const seller = req.seller;
-        const files = req.files;
-
-        const product = await Product.findOne({ _id: id, vendor: seller._id });
-        if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found",
-            });
-        }
-
-        // Store old file paths for cleanup
-        const oldFilesToDelete = [];
-
-        // Update thumbnail
-        if (files?.thumbnail && files.thumbnail[0]) {
-            if (product.thumbnail?.filename) {
-                oldFilesToDelete.push(product.thumbnail.url.substring(1)); // Remove leading slash
-            }
-            updateData.thumbnail = getFileInfo(files.thumbnail[0]);
-        }
-
-        // Add new images
-        if (files?.images && files.images.length > 0) {
-            const newImages = files.images.map((file, index) => ({
-                ...getFileInfo(file),
-                alt: updateData.title || product.title,
-                sortOrder: product.images.length + index,
-            }));
-            updateData.images = [...product.images, ...newImages];
-        }
-
-        // Remove specific images if requested
-        if (updateData.removeImages && Array.isArray(updateData.removeImages)) {
-            const imagesToKeep = product.images.filter(
-                (img) => !updateData.removeImages.includes(img.filename),
-            );
-            const imagesToDelete = product.images.filter((img) =>
-                updateData.removeImages.includes(img.filename),
-            );
-            imagesToDelete.forEach((img) => {
-                if (img.url) oldFilesToDelete.push(img.url.substring(1));
-            });
-            updateData.images = imagesToKeep;
-            delete updateData.removeImages;
-        }
-
-        // Remove thumbnail if requested
-        if (updateData.removeThumbnail && product.thumbnail?.filename) {
-            oldFilesToDelete.push(product.thumbnail.url.substring(1));
-            updateData.thumbnail = null;
-            delete updateData.removeThumbnail;
-        }
-
-        // Prevent updating certain fields
-        delete updateData.vendor;
-        delete updateData.createdBy;
-        delete updateData.creatorModel;
-        delete updateData.analytics;
-        delete updateData.rating;
-        delete updateData.isDeleted;
-
-        // Status change handling
-        if (updateData.status === "published" && product.status !== "published") {
-            updateData.status = "pending_review";
-        }
-
-        // Update variant combinations if variant options changed
-        if (
-            updateData.hasVariants &&
-            updateData.variantOptions &&
-            JSON.stringify(updateData.variantOptions) !== JSON.stringify(product.variantOptions)
-        ) {
-            updateData.variants = Product.generateVariantCombinations(updateData.variantOptions, {
-                sku: product.sku,
-                price: updateData.price || product.price,
-            });
-        }
-
-        // Recalculate discount effective price
-        if (updateData.discount || updateData.price) {
-            const finalPrice = updateData.price || product.price;
-            const finalDiscount = updateData.discount || product.discount;
-
-            if (finalDiscount.type !== "none" && finalDiscount.value > 0) {
-                let effectivePrice = finalPrice.amount;
-                if (finalDiscount.type === "percentage") {
-                    effectivePrice = finalPrice.amount * (1 - finalDiscount.value / 100);
-                } else if (finalDiscount.type === "fixed") {
-                    effectivePrice = Math.max(0, finalPrice.amount - finalDiscount.value);
-                }
-                updateData.discount = {
-                    ...finalDiscount,
-                    effectivePrice: Math.round(effectivePrice * 100) / 100,
-                };
-            }
-        }
-
-        const updatedProduct = await Product.findByIdAndUpdate(
-            id,
-            { $set: updateData },
-            { new: true, runValidators: true },
-        );
-
-        // Delete old files after successful update
-        oldFilesToDelete.forEach((filePath) => {
-            deleteFile(filePath);
-        });
-
-        return res.status(200).json({
-            success: true,
-            message: "Product updated successfully",
-            data: updatedProduct,
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Failed to update product",
-            error: error.message,
-        });
-    }
-};
-
-// Delete Product (Soft delete with file cleanup)
-export const deleteProduct = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const seller = req.seller;
-
-        const product = await Product.findOne({ _id: id, vendor: seller._id });
-        if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found",
-            });
-        }
-
-        // Collect all files to delete
-        const filesToDelete = [];
-
-        if (product.thumbnail?.filename) {
-            filesToDelete.push(product.thumbnail.url.substring(1));
-        }
-
-        product.images.forEach((img) => {
-            if (img.filename) filesToDelete.push(img.url.substring(1));
-        });
-
-        product.variants.forEach((variant) => {
-            variant.images.forEach((img) => {
-                if (img.filename) filesToDelete.push(img.url.substring(1));
-            });
-        });
-
-        // Soft delete
-        product.isDeleted = true;
-        product.isActive = false;
-        await product.save();
-
-        // Optionally delete files immediately or schedule for cleanup
-        // For now, we'll keep files but you can uncomment the line below
-        // filesToDelete.forEach(filePath => deleteFile(filePath));
-
-        return res.status(200).json({
-            success: true,
-            message: "Product deleted successfully",
-        });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Failed to delete product",
-            error: error.message,
-        });
-    }
-};
-
-// Get all products for a seller
+// ─────────────────────────────────────────────────────────────────────────────
+//  GET ALL SELLER PRODUCTS  (with filtering, search, pagination)
+//  GET /seller/products
+// ─────────────────────────────────────────────────────────────────────────────
 export const getSellerProducts = async (req, res) => {
     try {
         const seller = req.seller;
-        const { page = 1, limit = 20, status, sortBy = "createdAt" } = req.query;
+        const {
+            page = 1,
+            limit = 20,
+            status,
+            category,
+            subCategory,
+            search,
+            sortBy = "newest",
+            hasVariants,
+            minPrice,
+            maxPrice,
+            minStock,
+            maxStock,
+            isFeatured,
+            visibility,
+            tags,
+        } = req.query;
 
         const query = { vendor: seller._id, isDeleted: false };
-        if (status) query.status = status;
 
-        let sort = {};
-        if (sortBy === "createdAt") sort = { createdAt: -1 };
-        else if (sortBy === "price") sort = { "price.amount": 1 };
-        else if (sortBy === "sales") sort = { "analytics.salesCount": -1 };
-        else if (sortBy === "stock") sort = { stock: 1 };
+        if (status) {
+            const statusArr = status.split(",").map((s) => s.trim());
+            query.status = { $in: statusArr };
+        }
+        if (category) query.category = category;
+        if (subCategory) query.subCategory = subCategory;
+        if (hasVariants !== undefined) query.hasVariants = hasVariants === "true";
+        if (isFeatured !== undefined) query.isFeatured = isFeatured === "true";
+        if (visibility) query.visibility = visibility;
+        if (tags) query.tags = { $in: tags.split(",").map((t) => t.trim()) };
 
-        const products = await Product.find(query)
-            .sort(sort)
-            .skip((page - 1) * limit)
-            .limit(parseInt(limit))
-            .populate("category", "name slug")
-            .populate("brand", "name");
+        if (minPrice || maxPrice) {
+            query["price.amount"] = {};
+            if (minPrice) query["price.amount"].$gte = parseFloat(minPrice);
+            if (maxPrice) query["price.amount"].$lte = parseFloat(maxPrice);
+        }
 
-        const total = await Product.countDocuments(query);
+        if (minStock !== undefined || maxStock !== undefined) {
+            query.stock = {};
+            if (minStock !== undefined) query.stock.$gte = parseInt(minStock);
+            if (maxStock !== undefined) query.stock.$lte = parseInt(maxStock);
+        }
+
+        if (search) {
+            query.$or = [
+                { title: { $regex: search, $options: "i" } },
+                { sku: { $regex: search, $options: "i" } },
+                { tags: { $regex: search, $options: "i" } },
+            ];
+        }
+
+        const pageNum = Math.max(1, parseInt(page));
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
+
+        const [products, total] = await Promise.all([
+            Product.find(query)
+                .sort(buildSort(sortBy))
+                .skip((pageNum - 1) * limitNum)
+                .limit(limitNum)
+                .populate("category", "name slug")
+                .populate("subCategory", "name slug")
+                .populate("brand", "name slug")
+                .select("-description -attributes -variants -seo -metadata"),
+            Product.countDocuments(query),
+        ]);
 
         return res.status(200).json({
             success: true,
             data: products,
             pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
+                page: pageNum,
+                limit: limitNum,
                 total,
-                pages: Math.ceil(total / limit),
+                pages: Math.ceil(total / limitNum),
+                hasNextPage: pageNum < Math.ceil(total / limitNum),
+                hasPrevPage: pageNum > 1,
             },
         });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch products",
-            error: error.message,
-        });
+        console.error("getSellerProducts error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch products", error: error.message });
     }
 };
 
-// Get single product by ID
+// ─────────────────────────────────────────────────────────────────────────────
+//  GET SINGLE PRODUCT
+//  GET /seller/products/:id
+// ─────────────────────────────────────────────────────────────────────────────
 export const getSellerProductById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -472,50 +343,230 @@ export const getSellerProductById = async (req, res) => {
             .populate("brand", "name slug logo");
 
         if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found",
-            });
+            return res.status(404).json({ success: false, message: "Product not found" });
         }
 
-        return res.status(200).json({
-            success: true,
-            data: product,
-        });
+        return res.status(200).json({ success: true, data: product });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Failed to fetch product",
-            error: error.message,
-        });
+        console.error("getSellerProductById error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch product", error: error.message });
     }
 };
 
-// Update product stock
+// ─────────────────────────────────────────────────────────────────────────────
+//  UPDATE PRODUCT
+//  PUT /seller/products/:id
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateProduct = async (req, res) => {
+    const files = req.files;
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+        const updateData = JSON.parse(req.body.data || "{}");
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            cleanupFiles(files);
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        // ── Validation ──────────────────────────────────────────────────────
+        const validationErrors = validateProductUpdateInput(updateData);
+        if (validationErrors) {
+            cleanupFiles(files);
+            return res.status(400).json({ success: false, message: "Validation failed", errors: validationErrors });
+        }
+
+        // ── Prevent protected fields from being overwritten ─────────────────
+        const PROTECTED = ["vendor", "createdBy", "creatorModel", "analytics", "rating", "isDeleted", "approvedBy", "approvedAt"];
+        PROTECTED.forEach((f) => delete updateData[f]);
+
+        // ── Category check ───────────────────────────────────────────────────
+        if (updateData.category) {
+            const cat = await Category.findById(updateData.category);
+            if (!cat) {
+                cleanupFiles(files);
+                return res.status(404).json({ success: false, message: "Category not found" });
+            }
+        }
+
+        // ── SKU uniqueness ───────────────────────────────────────────────────
+        if (updateData.sku && updateData.sku !== product.sku) {
+            const skuExists = await Product.findOne({ sku: updateData.sku, _id: { $ne: id } });
+            if (skuExists) {
+                cleanupFiles(files);
+                return res.status(400).json({ success: false, message: "SKU already in use" });
+            }
+        }
+
+        const oldFilesToDelete = [];
+
+        // ── Thumbnail ────────────────────────────────────────────────────────
+        if (files?.thumbnail?.[0]) {
+            if (product.thumbnail?.filename) oldFilesToDelete.push(product.thumbnail.url.substring(1));
+            updateData.thumbnail = getFileInfo(files.thumbnail[0]);
+        }
+
+        if (updateData.removeThumbnail) {
+            if (product.thumbnail?.filename) oldFilesToDelete.push(product.thumbnail.url.substring(1));
+            updateData.thumbnail = null;
+            delete updateData.removeThumbnail;
+        }
+
+        // ── Gallery images ───────────────────────────────────────────────────
+        if (files?.images?.length) {
+            const newImages = files.images.map((file, index) => ({
+                ...getFileInfo(file),
+                alt: updateData.title || product.title,
+                sortOrder: product.images.length + index,
+            }));
+            updateData.images = [...product.images, ...newImages];
+        }
+
+        if (updateData.removeImages?.length) {
+            const toRemove = new Set(updateData.removeImages);
+            product.images.forEach((img) => {
+                if (toRemove.has(img.filename)) oldFilesToDelete.push(img.url.substring(1));
+            });
+            updateData.images = (updateData.images || product.images).filter(
+                (img) => !toRemove.has(img.filename),
+            );
+            delete updateData.removeImages;
+        }
+
+        // Re-order images if sortOrders provided
+        if (updateData.imageOrder?.length) {
+            const orderMap = {};
+            updateData.imageOrder.forEach((filename, idx) => (orderMap[filename] = idx));
+            const imgs = updateData.images || product.images;
+            updateData.images = imgs
+                .map((img) => ({ ...img.toObject?.() ?? img, sortOrder: orderMap[img.filename] ?? img.sortOrder }))
+                .sort((a, b) => a.sortOrder - b.sortOrder);
+            delete updateData.imageOrder;
+        }
+
+        // ── Variants (if options changed) ────────────────────────────────────
+        if (updateData.hasVariants && updateData.variantOptions) {
+            const parsedOptions =
+                typeof updateData.variantOptions === "string"
+                    ? JSON.parse(updateData.variantOptions)
+                    : updateData.variantOptions;
+
+            const optionsChanged =
+                JSON.stringify(parsedOptions) !== JSON.stringify(product.variantOptions);
+
+            if (optionsChanged) {
+                updateData.variants = Product.generateVariantCombinations(parsedOptions, {
+                    sku: updateData.sku || product.sku,
+                    price: updateData.price || product.price,
+                    discount: updateData.discount || product.discount,
+                });
+            }
+        }
+
+        // ── Discount effective price ─────────────────────────────────────────
+        if (updateData.discount || updateData.price) {
+            const finalPrice = updateData.price || product.price;
+            const finalDiscount = updateData.discount || product.discount;
+            updateData.discount = {
+                ...finalDiscount,
+                effectivePrice: calcEffectivePrice(finalPrice.amount, finalDiscount),
+            };
+        }
+
+        // ── Status gate  (seller cannot publish directly) ─────────────────────
+        if (updateData.status === "published") {
+            updateData.status = "pending_review";
+        }
+
+        // ── Tags dedup ───────────────────────────────────────────────────────
+        if (updateData.tags) updateData.tags = [...new Set(updateData.tags)];
+
+        updateData.lastModifiedBy = seller._id;
+        updateData.lastModifiedByModel = "Seller";
+
+        const updated = await Product.findByIdAndUpdate(
+            id,
+            { $set: updateData },
+            { new: true, runValidators: true },
+        );
+
+        // cleanup old files after successful DB update
+        oldFilesToDelete.forEach((p) => deleteFile(p));
+
+        return res.status(200).json({ success: true, message: "Product updated successfully", data: updated });
+    } catch (error) {
+        cleanupFiles(files);
+        console.error("updateProduct error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update product", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SOFT DELETE PRODUCT
+//  DELETE /seller/products/:id
+// ─────────────────────────────────────────────────────────────────────────────
+export const deleteProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        product.isDeleted = true;
+        product.isActive = false;
+        product.status = "archived";
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        return res.status(200).json({ success: true, message: "Product deleted successfully" });
+    } catch (error) {
+        console.error("deleteProduct error:", error);
+        return res.status(500).json({ success: false, message: "Failed to delete product", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  UPDATE STOCK  (product-level or variant-level)
+//  PATCH /seller/products/:id/stock
+// ─────────────────────────────────────────────────────────────────────────────
 export const updateProductStock = async (req, res) => {
     try {
         const { id } = req.params;
-        const { stock, variantId } = req.body;
         const seller = req.seller;
 
-        const product = await Product.findOne({ _id: id, vendor: seller._id });
-        if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: "Product not found",
-            });
+        const validationErrors = validateStockUpdate(req.body);
+        if (validationErrors) {
+            return res.status(400).json({ success: false, message: "Validation failed", errors: validationErrors });
         }
 
-        if (variantId && product.hasVariants) {
+        const { stock, variantId } = req.body;
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        if (variantId) {
+            if (!product.hasVariants) {
+                return res.status(400).json({ success: false, message: "This product does not have variants" });
+            }
             const variant = product.variants.id(variantId);
             if (!variant) {
-                return res.status(404).json({
-                    success: false,
-                    message: "Variant not found",
-                });
+                return res.status(404).json({ success: false, message: "Variant not found" });
             }
             variant.stock = Math.max(0, stock);
         } else {
+            if (product.hasVariants) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Use variantId to update stock for individual variants",
+                });
+            }
             product.stock = Math.max(0, stock);
         }
 
@@ -524,13 +575,716 @@ export const updateProductStock = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Stock updated successfully",
-            data: { stock: variantId ? null : product.stock },
+            data: {
+                productId: product._id,
+                stock: product.stock,
+                variantId: variantId || null,
+            },
         });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Failed to update stock",
-            error: error.message,
-        });
+        console.error("updateProductStock error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update stock", error: error.message });
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SUBMIT FOR REVIEW  (draft → pending_review)
+//  PATCH /seller/products/:id/submit
+// ─────────────────────────────────────────────────────────────────────────────
+export const submitProductForReview = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        if (!["draft", "rejected"].includes(product.status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot submit a product that is currently "${product.status}"`,
+            });
+        }
+
+        // Basic completeness checks before submitting
+        const incompleteFields = [];
+        if (!product.thumbnail) incompleteFields.push("thumbnail");
+        if (!product.description) incompleteFields.push("description");
+        if (!product.category) incompleteFields.push("category");
+        if (!product.hasVariants && product.stock === undefined) incompleteFields.push("stock");
+
+        if (incompleteFields.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Product is incomplete. Please fill in required fields before submitting.",
+                missingFields: incompleteFields,
+            });
+        }
+
+        product.status = "pending_review";
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Product submitted for review successfully",
+            data: { status: product.status },
+        });
+    } catch (error) {
+        console.error("submitProductForReview error:", error);
+        return res.status(500).json({ success: false, message: "Failed to submit product", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ARCHIVE / UNARCHIVE PRODUCT
+//  PATCH /seller/products/:id/archive
+//  PATCH /seller/products/:id/unarchive
+// ─────────────────────────────────────────────────────────────────────────────
+export const archiveProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        if (product.status === "archived") {
+            return res.status(400).json({ success: false, message: "Product is already archived" });
+        }
+
+        product.status = "archived";
+        product.isActive = false;
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        return res.status(200).json({ success: true, message: "Product archived successfully", data: { status: product.status } });
+    } catch (error) {
+        console.error("archiveProduct error:", error);
+        return res.status(500).json({ success: false, message: "Failed to archive product", error: error.message });
+    }
+};
+
+export const unarchiveProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        if (product.status !== "archived") {
+            return res.status(400).json({ success: false, message: "Product is not archived" });
+        }
+
+        product.status = "draft";
+        product.isActive = true;
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        return res.status(200).json({ success: true, message: "Product unarchived successfully", data: { status: product.status } });
+    } catch (error) {
+        console.error("unarchiveProduct error:", error);
+        return res.status(500).json({ success: false, message: "Failed to unarchive product", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  DUPLICATE PRODUCT
+//  POST /seller/products/:id/duplicate
+// ─────────────────────────────────────────────────────────────────────────────
+export const duplicateProduct = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+
+        const original = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!original) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        const originalObj = original.toObject();
+
+        // Strip unique / system fields
+        delete originalObj._id;
+        delete originalObj.slug;
+        delete originalObj.sku;
+        delete originalObj.createdAt;
+        delete originalObj.updatedAt;
+        delete originalObj.__v;
+        delete originalObj.id;
+
+        // Reset analytics + rating + publishing fields
+        originalObj.analytics = { views: 0, salesCount: 0, wishlistCount: 0, shareCount: 0 };
+        originalObj.rating = { average: 0, count: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+        originalObj.status = "draft";
+        originalObj.isActive = true;
+        originalObj.isFeatured = false;
+        originalObj.publishedAt = null;
+        originalObj.approvedBy = null;
+        originalObj.approvedAt = null;
+        originalObj.rejectedReason = null;
+
+        // Prefix title so seller can distinguish it
+        originalObj.title = `${original.title} (Copy)`;
+
+        originalObj.createdBy = seller._id;
+        originalObj.creatorModel = "Seller";
+        originalObj.lastModifiedBy = seller._id;
+        originalObj.lastModifiedByModel = "Seller";
+
+        // Reset variant SKUs to avoid unique constraint conflicts
+        if (originalObj.hasVariants && originalObj.variants?.length) {
+            originalObj.variants = originalObj.variants.map((v, idx) => ({
+                ...v,
+                sku: null, // will need to be set manually
+                stock: 0,
+            }));
+        }
+
+        const duplicate = new Product(originalObj);
+        await duplicate.save();
+
+        return res.status(201).json({
+            success: true,
+            message: "Product duplicated successfully",
+            data: duplicate,
+        });
+    } catch (error) {
+        console.error("duplicateProduct error:", error);
+        return res.status(500).json({ success: false, message: "Failed to duplicate product", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  BULK ACTIONS  (publish/archive/delete/draft)
+//  POST /seller/products/bulk
+// ─────────────────────────────────────────────────────────────────────────────
+export const bulkProductAction = async (req, res) => {
+    try {
+        const seller = req.seller;
+
+        const validationErrors = validateBulkAction(req.body);
+        if (validationErrors) {
+            return res.status(400).json({ success: false, message: "Validation failed", errors: validationErrors });
+        }
+
+        const { productIds, action } = req.body;
+
+        const actionStatusMap = {
+            publish: "pending_review",   // seller can only request review, not directly publish
+            archive: "archived",
+            delete: null,               // handled separately
+            draft: "draft",
+        };
+
+        if (action === "delete") {
+            const result = await Product.updateMany(
+                { _id: { $in: productIds }, vendor: seller._id, isDeleted: false },
+                {
+                    $set: {
+                        isDeleted: true,
+                        isActive: false,
+                        status: "archived",
+                        lastModifiedBy: seller._id,
+                        lastModifiedByModel: "Seller",
+                    },
+                },
+            );
+            return res.status(200).json({
+                success: true,
+                message: `${result.modifiedCount} product(s) deleted successfully`,
+                modifiedCount: result.modifiedCount,
+            });
+        }
+
+        const newStatus = actionStatusMap[action];
+        const result = await Product.updateMany(
+            { _id: { $in: productIds }, vendor: seller._id, isDeleted: false },
+            {
+                $set: {
+                    status: newStatus,
+                    isActive: action !== "archive",
+                    lastModifiedBy: seller._id,
+                    lastModifiedByModel: "Seller",
+                },
+            },
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: `${result.modifiedCount} product(s) updated successfully`,
+            modifiedCount: result.modifiedCount,
+        });
+    } catch (error) {
+        console.error("bulkProductAction error:", error);
+        return res.status(500).json({ success: false, message: "Failed to perform bulk action", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  GET SELLER DASHBOARD STATS
+//  GET /seller/products/stats
+// ─────────────────────────────────────────────────────────────────────────────
+export const getProductStats = async (req, res) => {
+    try {
+        const seller = req.seller;
+
+        const [statusCounts, stockAlerts, topProducts, recentActivity] = await Promise.all([
+            // Count by status
+            Product.aggregate([
+                { $match: { vendor: seller._id, isDeleted: false } },
+                { $group: { _id: "$status", count: { $sum: 1 } } },
+            ]),
+
+            // Low stock and out-of-stock
+            Product.aggregate([
+                { $match: { vendor: seller._id, isDeleted: false, status: "published" } },
+                {
+                    $project: {
+                        title: 1,
+                        stock: 1,
+                        lowStockThreshold: 1,
+                        isOutOfStock: { $lte: ["$stock", 0] },
+                        isLowStock: {
+                            $and: [
+                                { $gt: ["$stock", 0] },
+                                { $lte: ["$stock", "$lowStockThreshold"] },
+                            ],
+                        },
+                    },
+                },
+                { $match: { $or: [{ isOutOfStock: true }, { isLowStock: true }] } },
+                { $limit: 20 },
+            ]),
+
+            // Top 5 by sales
+            Product.find({ vendor: seller._id, isDeleted: false })
+                .sort({ "analytics.salesCount": -1 })
+                .limit(5)
+                .select("title thumbnail analytics.salesCount analytics.views price status"),
+
+            // Recently modified
+            Product.find({ vendor: seller._id, isDeleted: false })
+                .sort({ updatedAt: -1 })
+                .limit(5)
+                .select("title status updatedAt thumbnail"),
+        ]);
+
+        // Format status counts into a map
+        const statusMap = statusCounts.reduce((acc, cur) => {
+            acc[cur._id] = cur.count;
+            return acc;
+        }, {});
+
+        const totalProducts = Object.values(statusMap).reduce((a, b) => a + b, 0);
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                overview: {
+                    total: totalProducts,
+                    draft: statusMap.draft || 0,
+                    pending_review: statusMap.pending_review || 0,
+                    published: statusMap.published || 0,
+                    archived: statusMap.archived || 0,
+                    rejected: statusMap.rejected || 0,
+                },
+                stockAlerts: {
+                    outOfStock: stockAlerts.filter((p) => p.isOutOfStock),
+                    lowStock: stockAlerts.filter((p) => p.isLowStock),
+                },
+                topProducts,
+                recentActivity,
+            },
+        });
+    } catch (error) {
+        console.error("getProductStats error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch stats", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  UPDATE SINGLE VARIANT
+//  PATCH /seller/products/:id/variants/:variantId
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateVariant = async (req, res) => {
+    const files = req.files;
+    try {
+        const { id, variantId } = req.params;
+        const seller = req.seller;
+
+        const validationErrors = validateVariantUpdate(req.body);
+        if (validationErrors) {
+            cleanupFiles(files);
+            return res.status(400).json({ success: false, message: "Validation failed", errors: validationErrors });
+        }
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            cleanupFiles(files);
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        if (!product.hasVariants) {
+            cleanupFiles(files);
+            return res.status(400).json({ success: false, message: "This product does not have variants" });
+        }
+
+        const variant = product.variants.id(variantId);
+        if (!variant) {
+            cleanupFiles(files);
+            return res.status(404).json({ success: false, message: "Variant not found" });
+        }
+
+        // SKU uniqueness for variant
+        if (req.body.sku && req.body.sku !== variant.sku) {
+            const skuExists = await Product.findOne({
+                "variants.sku": req.body.sku,
+                _id: { $ne: id },
+            });
+            if (skuExists) {
+                cleanupFiles(files);
+                return res.status(400).json({ success: false, message: "Variant SKU already in use" });
+            }
+        }
+
+        const oldFilesToDelete = [];
+
+        // Variant images
+        if (files?.variantImages?.length) {
+            const newImages = files.variantImages.map((file) => getFileInfo(file));
+            variant.images = [...variant.images, ...newImages];
+        }
+
+        if (req.body.removeImages?.length) {
+            const toRemove = new Set(req.body.removeImages);
+            variant.images.forEach((img) => {
+                if (toRemove.has(img.filename)) oldFilesToDelete.push(img.url.substring(1));
+            });
+            variant.images = variant.images.filter((img) => !toRemove.has(img.filename));
+        }
+
+        // Allowed fields to update
+        const allowedFields = ["sku", "barcode", "price", "compareAtPrice", "discount", "stock", "weight", "dimensions", "isActive", "sortOrder"];
+        allowedFields.forEach((field) => {
+            if (req.body[field] !== undefined) variant[field] = req.body[field];
+        });
+
+        // Recalc variant discount effective price
+        if (variant.discount && variant.price) {
+            variant.discount.effectivePrice = calcEffectivePrice(variant.price.amount, variant.discount);
+        }
+
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        oldFilesToDelete.forEach((p) => deleteFile(p));
+
+        return res.status(200).json({ success: true, message: "Variant updated successfully", data: variant });
+    } catch (error) {
+        cleanupFiles(files);
+        console.error("updateVariant error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update variant", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  GET ALL VARIANTS OF A PRODUCT
+//  GET /seller/products/:id/variants
+// ─────────────────────────────────────────────────────────────────────────────
+export const getProductVariants = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+
+        const product = await Product.findOne(
+            { _id: id, vendor: seller._id, isDeleted: false },
+            { variants: 1, variantOptions: 1, hasVariants: 1, title: 1 },
+        );
+        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+        if (!product.hasVariants) {
+            return res.status(400).json({ success: false, message: "This product does not have variants" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                variantOptions: product.variantOptions,
+                variants: product.variants,
+                totalVariants: product.variants.length,
+            },
+        });
+    } catch (error) {
+        console.error("getProductVariants error:", error);
+        return res.status(500).json({ success: false, message: "Failed to fetch variants", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  UPDATE SEO
+//  PATCH /seller/products/:id/seo
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateProductSeo = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+        const { metaTitle, metaDescription, keywords, canonicalUrl } = req.body;
+
+        const errors = [];
+        if (metaTitle && metaTitle.length > 70)
+            errors.push({ field: "metaTitle", message: "Meta title cannot exceed 70 characters" });
+        if (metaDescription && metaDescription.length > 160)
+            errors.push({ field: "metaDescription", message: "Meta description cannot exceed 160 characters" });
+        if (errors.length) return res.status(400).json({ success: false, message: "Validation failed", errors });
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+        product.seo = {
+            ...product.seo?.toObject?.() ?? product.seo ?? {},
+            ...(metaTitle !== undefined && { metaTitle }),
+            ...(metaDescription !== undefined && { metaDescription }),
+            ...(keywords !== undefined && { keywords }),
+            ...(canonicalUrl !== undefined && { canonicalUrl }),
+        };
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        return res.status(200).json({ success: true, message: "SEO updated successfully", data: product.seo });
+    } catch (error) {
+        console.error("updateProductSeo error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update SEO", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  UPDATE PRICING / DISCOUNT
+//  PATCH /seller/products/:id/pricing
+// ─────────────────────────────────────────────────────────────────────────────
+export const updateProductPricing = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+        const { price, compareAtPrice, discount } = req.body;
+
+        const errors = [];
+        if (price !== undefined) validatePriceField(price, errors);
+        if (discount !== undefined) validateDiscountField(discount, price, errors);
+        if (errors.length) return res.status(400).json({ success: false, message: "Validation failed", errors });
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+        const finalPrice = price || product.price;
+        const finalDiscount = discount || product.discount;
+
+        await Product.findByIdAndUpdate(id, {
+            $set: {
+                ...(price && { price }),
+                ...(compareAtPrice !== undefined && { compareAtPrice }),
+                ...(discount !== undefined && {
+                    discount: {
+                        ...finalDiscount,
+                        effectivePrice: calcEffectivePrice(finalPrice.amount, finalDiscount),
+                    },
+                }),
+                lastModifiedBy: seller._id,
+                lastModifiedByModel: "Seller",
+            },
+        });
+
+        const updated = await Product.findById(id).select("price compareAtPrice discount");
+        return res.status(200).json({ success: true, message: "Pricing updated successfully", data: updated });
+    } catch (error) {
+        console.error("updateProductPricing error:", error);
+        return res.status(500).json({ success: false, message: "Failed to update pricing", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SLUG AVAILABILITY CHECK
+//  GET /seller/products/slug-check?slug=my-product
+// ─────────────────────────────────────────────────────────────────────────────
+export const checkSlugAvailability = async (req, res) => {
+    try {
+        const { slug, excludeId } = req.query;
+
+        if (!slug) {
+            return res.status(400).json({ success: false, message: "Slug is required" });
+        }
+
+        const cleanSlug = makeSlug(slug);
+        const query = { slug: cleanSlug };
+        if (excludeId) query._id = { $ne: excludeId };
+
+        const existing = await Product.findOne(query).select("_id");
+        return res.status(200).json({
+            success: true,
+            data: {
+                slug: cleanSlug,
+                available: !existing,
+            },
+        });
+    } catch (error) {
+        console.error("checkSlugAvailability error:", error);
+        return res.status(500).json({ success: false, message: "Failed to check slug", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  MANAGE PRODUCT IMAGES  (add / delete / reorder)
+//  POST   /seller/products/:id/images          → add images
+//  DELETE /seller/products/:id/images          → remove images
+//  PATCH  /seller/products/:id/images/reorder  → reorder images
+// ─────────────────────────────────────────────────────────────────────────────
+export const addProductImages = async (req, res) => {
+    const files = req.files;
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) {
+            cleanupFiles(files);
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        if (!files?.images?.length) {
+            return res.status(400).json({ success: false, message: "No images provided" });
+        }
+
+        if (product.images.length + files.images.length > 20) {
+            cleanupFiles(files);
+            return res.status(400).json({ success: false, message: "Maximum 20 images allowed per product" });
+        }
+
+        const newImages = files.images.map((file, index) => ({
+            ...getFileInfo(file),
+            alt: product.title,
+            sortOrder: product.images.length + index,
+        }));
+
+        product.images.push(...newImages);
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        return res.status(200).json({ success: true, message: "Images added successfully", data: product.images });
+    } catch (error) {
+        cleanupFiles(files);
+        console.error("addProductImages error:", error);
+        return res.status(500).json({ success: false, message: "Failed to add images", error: error.message });
+    }
+};
+
+export const removeProductImages = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+        const { filenames } = req.body;
+
+        if (!filenames || !Array.isArray(filenames) || filenames.length === 0) {
+            return res.status(400).json({ success: false, message: "Filenames array is required" });
+        }
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+        const toRemove = new Set(filenames);
+        const filesToDelete = [];
+        product.images.forEach((img) => {
+            if (toRemove.has(img.filename)) filesToDelete.push(img.url.substring(1));
+        });
+
+        product.images = product.images.filter((img) => !toRemove.has(img.filename));
+        // Re-assign sortOrder
+        product.images = product.images.map((img, idx) => ({ ...img.toObject(), sortOrder: idx }));
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        filesToDelete.forEach((p) => deleteFile(p));
+
+        return res.status(200).json({ success: true, message: "Images removed successfully", data: product.images });
+    } catch (error) {
+        console.error("removeProductImages error:", error);
+        return res.status(500).json({ success: false, message: "Failed to remove images", error: error.message });
+    }
+};
+
+export const reorderProductImages = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const seller = req.seller;
+        const { order } = req.body; // array of filenames in desired order
+
+        if (!order || !Array.isArray(order)) {
+            return res.status(400).json({ success: false, message: "Order array is required" });
+        }
+
+        const product = await Product.findOne({ _id: id, vendor: seller._id, isDeleted: false });
+        if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+        const imageMap = Object.fromEntries(product.images.map((img) => [img.filename, img.toObject()]));
+
+        const reordered = order
+            .filter((filename) => imageMap[filename])
+            .map((filename, idx) => ({ ...imageMap[filename], sortOrder: idx }));
+
+        // Add any images not in the order array at the end
+        const orderedSet = new Set(order);
+        product.images.forEach((img) => {
+            if (!orderedSet.has(img.filename)) {
+                reordered.push({ ...img.toObject(), sortOrder: reordered.length });
+            }
+        });
+
+        product.images = reordered;
+        product.lastModifiedBy = seller._id;
+        product.lastModifiedByModel = "Seller";
+        await product.save();
+
+        return res.status(200).json({ success: true, message: "Images reordered successfully", data: product.images });
+    } catch (error) {
+        console.error("reorderProductImages error:", error);
+        return res.status(500).json({ success: false, message: "Failed to reorder images", error: error.message });
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Helper re-export (used in updateProductPricing above without import)
+// ─────────────────────────────────────────────────────────────────────────────
+function validatePriceField(price, errors) {
+    if (!price || price.amount === undefined || price.amount === null) {
+        errors.push({ field: "price", message: "Price is required" });
+    } else if (typeof price.amount !== "number" || price.amount < 0) {
+        errors.push({ field: "price.amount", message: "Price must be a non-negative number" });
+    }
+}
+
+function validateDiscountField(discount, price, errors) {
+    if (!discount || discount.type === "none") return;
+    if (!["percentage", "fixed"].includes(discount.type)) {
+        errors.push({ field: "discount.type", message: "Invalid discount type" });
+        return;
+    }
+    if (discount.type === "percentage" && discount.value > 100) {
+        errors.push({ field: "discount.value", message: "Percentage discount cannot exceed 100%" });
+    }
+    if (discount.type === "fixed" && price?.amount !== undefined && discount.value > price.amount) {
+        errors.push({ field: "discount.value", message: "Fixed discount cannot exceed product price" });
+    }
+}

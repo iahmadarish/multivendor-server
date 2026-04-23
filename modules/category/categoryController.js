@@ -11,13 +11,13 @@ import { deleteImageFile, getImageUrl, getFilePathFromUrl } from "../../utils/up
 // @access  Public
 export const getCategoryTree = asyncHandler(async (req, res) => {
   const { 
-    maxDepth = 4,
+    maxDepth = 40,
     includeInactive = 'false',
     includeContent = 'true',
     minimal = 'false'
   } = req.query;
 
-  // ✅ Build select fields based on requirements
+
   let selectFields = 'name slug description parentCategory displayOrder isActive _id';
   
   if (includeContent === 'true') {
@@ -28,19 +28,19 @@ export const getCategoryTree = asyncHandler(async (req, res) => {
     selectFields = 'name slug parentCategory _id';
   }
 
-  // ✅ Build filter
+
   const filter = {};
   if (includeInactive !== 'true') {
     filter.isActive = true;
   }
 
-  // ✅ Get all categories
+
   const categories = await Category.find(filter)
     .select(selectFields)
     .sort({ displayOrder: 1, name: 1 })
     .lean();
 
-  // ✅ Function to limit aplusContent size (if too large)
+
   const optimizeCategoryData = (category) => {
     const optimized = { ...category };
     
@@ -62,7 +62,7 @@ export const getCategoryTree = asyncHandler(async (req, res) => {
     return optimized;
   };
 
-  // ✅ Create a map for O(1) lookups
+
   const categoryMap = new Map();
   
   // First pass: create optimized entries
@@ -73,7 +73,7 @@ export const getCategoryTree = asyncHandler(async (req, res) => {
     });
   });
 
-  // ✅ Build tree efficiently
+
   const rootCategories = [];
   
   categories.forEach(category => {
@@ -87,7 +87,7 @@ export const getCategoryTree = asyncHandler(async (req, res) => {
     }
   });
 
-  // ✅ Optional: Limit depth
+
   const limitDepth = (nodes, currentDepth = 0) => {
     if (currentDepth >= maxDepth) {
       return nodes.map(node => {
