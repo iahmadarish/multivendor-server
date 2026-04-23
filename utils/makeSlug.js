@@ -1,9 +1,14 @@
-import slugify from "slugify"
-
+// utils/makeSlug.js
 export const makeSlug = (text) => {
-  return slugify(text, {
-    lower: true,
-    strict: true,
-    remove: /[*+~.()'"!:@]/g,
-  })
-}
+    if (!text) return "";
+
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "-") // Replace spaces with -
+        .replace(/[^\w\-]+/g, "") // Remove all non-word chars
+        .replace(/\-\-+/g, "-") // Replace multiple - with single -
+        .replace(/^-+/, "") // Trim - from start of text
+        .replace(/-+$/, ""); // Trim - from end of text
+};

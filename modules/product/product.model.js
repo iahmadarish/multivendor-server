@@ -1,365 +1,710 @@
+// models/product.model.js
 import mongoose from "mongoose";
+import { makeSlug } from "../../utils/makeSlug.js";
 
+// Money schema for precise pricing
+const moneySchema = new mongoose.Schema(
+    {
+        amount: { type: Number, required: true, min: 0 },
+        currency: { type: String, default: "BDT", uppercase: true },
+    },
+    { _id: false },
+);
+
+// Discount schema with pre-computed effective price
+const discountSchema = new mongoose.Schema(
+    {
+        type: {
+            type: String,
+            enum: ["none", "percentage", "fixed"],
+            default: "none",
+        },
+        value: { type: Number, default: 0, min: 0 },
+        effectivePrice: { type: Number, min: 0 },
+        startDate: { type: Date },
+        endDate: { type: Date },
+    },
+    { _id: false },
+);
+
+// SEO schema
+const seoSchema = new mongoose.Schema(
+    {
+        slug: { type: String, unique: true, sparse: true },
+        metaTitle: { type: String, maxlength: 70 },
+        metaDescription: { type: String, maxlength: 160 },
+        canonicalUrl: { type: String },
+        keywords: [{ type: String }],
+        schema: { type: mongoose.Schema.Types.Mixed },
+    },
+    { _id: false },
+);
+
+// Thumbnail schema
+const thumbnailSchema = new mongoose.Schema(
+    {
+        url: { type: String, required: true },
+        filename: { type: String },
+        originalName: { type: String },
+        alt: { type: String, default: "" },
+        width: { type: Number },
+        height: { type: Number },
+        size: { type: Number },
+        mimetype: { type: String },
+    },
+    { _id: false },
+);
+
+// Image schema
 const imageSchema = new mongoose.Schema(
-  {
-    url: { type: String, required: true },
-    public_id: { type: String },
-    filename: { type: String },
-    alt: { type: String, trim: true },
-    size: { type: Number },
-    mimetype: { type: String }
-  },
-  { _id: false }
-)
-
-const optionSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      default: 'Color'
+    {
+        url: { type: String, required: true },
+        filename: { type: String, required: true },
+        originalName: { type: String },
+        alt: { type: String, trim: true },
+        size: { type: Number },
+        mimetype: { type: String },
+        width: { type: Number },
+        height: { type: Number },
+        sortOrder: { type: Number, default: 0 },
     },
-    values: [{ type: String, trim: true, required: true }],
-  },
-  { _id: false }
+    { _id: false },
 );
 
-const variantSchema = new mongoose.Schema(
-  {
-    options: [
-      {
-        name: { type: String, trim: true, required: true },
-        value: { type: String, trim: true, required: true },
-        _id: false
-      }
-    ],
-    basePrice: { type: Number, min: 0 },
-    discountType: {
-      type: String,
-      enum: ["none", "percentage", "fixed"],
-      default: "none"
+// Video schema
+const videoSchema = new mongoose.Schema(
+    {
+        url: { type: String, required: true },
+        filename: { type: String },
+        title: { type: String },
+        duration: { type: Number },
+        sortOrder: { type: Number, default: 0 },
     },
-    discountValue: { 
-      type: Number, 
-      default: 0, 
-      min: 0,
-      validate: {
-        validator: function(value) {
-          if (this.discountType === "percentage") {
-            return value <= 100;
-          }
-          return true;
-        },
-        message: "Percentage discount cannot exceed 100%"
-      }
-    },
-    price: { type: Number, min: 0, default: 0 },
-    stock: { type: Number, min: 0, default: 0 },
-    imageGroupName: { type: String, trim: true },
-    sku: { type: String, sparse: true },
-  },
-  { _id: false }
+    { _id: false },
 );
 
-const productSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: [true, "Product name is required"],
-      trim: true,
-      maxlength: [200, "Product name cannot exceed 200 characters"],
-    },
-    slug: {
-      type: String,
-      unique: true,
-      lowercase: true,
-      index: true,
-    },
-    description: { type: String, trim: true },
-    aplusContentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "AplusContent"
-    },
-    bulletPoints: [{
-      type: String,
-      trim: true,
-      maxlength: [1700, "Bullet point cannot exceed 1700 characters"]
-    }],
-    brand: { type: String, trim: true, default: "Generic" },
-    sku: { type: String, unique: true, sparse: true },
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      required: [true, "Category is required"]
-    },
-    subCategory: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
-    basePrice: {
-      type: Number,
-      required: [true, "Base price is required"],
-      min: [0, "Price cannot be negative"]
-    },
-    discountType: {
-      type: String,
-      enum: ["none", "percentage", "fixed"],
-      default: "none"
-    },
-    discountValue: {
-      type: Number,
-      default: 0,
-      min: 0,
-      validate: {
-        validator: function(value) {
-          if (this.discountType === "percentage") {
-            return value <= 100;
-          }
-          return true;
-        },
-        message: "Percentage discount cannot exceed 100%"
-      }
-    },
-    price: { type: Number, min: 0 },
-    currency: { type: String, default: "USD" },
-    stock: {
-      type: Number,
-      required: [true, "Stock is required"],
-      min: [0, "Stock cannot be negative"]
-    },
-    lowStockAlert: { type: Number, default: 5, min: 0 },
-    isFeatured: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
-    imageGroups: [
-      {
+// Variant option schema
+const variantOptionSchema = new mongoose.Schema(
+    {
         name: { type: String, required: true, trim: true },
+        values: [{ type: String, trim: true, required: true }],
+        displayType: {
+            type: String,
+            enum: ["dropdown", "swatch", "button", "radio"],
+            default: "button",
+        },
+        isRequired: { type: Boolean, default: true },
+    },
+    { _id: false },
+);
+
+// Variant combination schema
+const variantCombinationSchema = new mongoose.Schema(
+    {
+        combination: [
+            {
+                name: { type: String, required: true, trim: true },
+                value: { type: String, required: true, trim: true },
+                _id: false,
+            },
+        ],
+        sku: { type: String, required: true, unique: true, sparse: true },
+        barcode: { type: String },
+        price: { type: moneySchema, required: true },
+        compareAtPrice: { type: moneySchema },
+        discount: { type: discountSchema },
+        stock: { type: Number, default: 0, min: 0 },
+        reservedStock: { type: Number, default: 0, min: 0 },
         images: [imageSchema],
-      },
-    ],
-    videos: [{ url: String, public_id: String }],
-    attributes: [
-      {
+        weight: { type: Number, min: 0 },
+        dimensions: {
+            length: { type: Number, min: 0 },
+            width: { type: Number, min: 0 },
+            height: { type: Number, min: 0 },
+        },
+        isActive: { type: Boolean, default: true },
+        sortOrder: { type: Number, default: 0 },
+    },
+    { timestamps: true, _id: true },
+);
+
+// Product attribute schema
+const productAttributeSchema = new mongoose.Schema(
+    {
+        groupName: { type: String, default: "General", trim: true },
         key: { type: String, required: true, trim: true },
         value: { type: String, required: true, trim: true },
-      },
-    ],
-    variantOptions: [optionSchema],
-    hasVariants: { type: Boolean, default: false },
-    variants: [variantSchema],
-    averageRating: { type: Number, default: 0, min: 0, max: 5 },
-    numReviews: { type: Number, default: 0, min: 0 },
-    reviews: [
-      {
-        user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        rating: { type: Number, required: true, min: 1, max: 5 },
-        comment: { type: String, trim: true },
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
-    weight: { type: Number, default: 0, min: 0 },
-    dimensions: {
-      length: { type: Number, default: 0, min: 0 },
-      width: { type: Number, default: 0, min: 0 },
-      height: { type: Number, default: 0, min: 0 }
+        unit: { type: String, trim: true },
+        isFilterable: { type: Boolean, default: false },
+        isVisible: { type: Boolean, default: true },
     },
-    shippingClass: {
-      type: String,
-      default: "Standard",
-      enum: ["Standard", "Express", "Overnight", "Free"]
-    },
-    metaTitle: { type: String, trim: true },
-    metaDescription: { type: String, trim: true },
-    metaKeywords: [{ type: String, trim: true }],
-    extraData: { type: mongoose.Schema.Types.Mixed, default: {} },
-  },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-  }
+    { _id: false },
 );
 
+// Delivery/shipping schema
+const deliverySchema = new mongoose.Schema(
+    {
+        weight: { type: Number, default: 0, min: 0 },
+        dimensions: {
+            length: { type: Number, default: 0, min: 0 },
+            width: { type: Number, default: 0, min: 0 },
+            height: { type: Number, default: 0, min: 0 },
+        },
+        shippingClass: {
+            type: String,
+            enum: ["standard", "express", "overnight", "free"],
+            default: "standard",
+        },
+        isFreeShipping: { type: Boolean, default: false },
+        estimatedDelivery: { type: String },
+        handlingTime: { type: Number, default: 1 },
+    },
+    { _id: false },
+);
 
-// Virtual for A+ Content
-productSchema.virtual('aplusContent', {
-  ref: 'AplusContent',
-  localField: 'aplusContentId',
-  foreignField: 'productId',
-  justOne: true
-});
+// Main Product Schema
+const productSchema = new mongoose.Schema(
+    {
+        // ── Identity & Basic Info ──────────────────────────────────────────────
+        title: {
+            type: String,
+            required: [true, "Product title is required"],
+            trim: true,
+            maxlength: [500, "Title cannot exceed 500 characters"],
+            index: true,
+        },
+        slug: {
+            type: String,
+            required: true,
+            unique: true,
+            lowercase: true,
+            index: true,
+        },
+        shortDescription: {
+            type: String,
+            maxlength: [500, "Short description cannot exceed 500 characters"],
+        },
+        description: {
+            type: String,
+            required: [true, "Product description is required"],
+        },
+        highlights: [{ type: String, trim: true }],
 
-// Slug generation middleware
-productSchema.pre("save", function (next) {
-  if (this.isModified("name") && this.name) {
-    this.slug = this.name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-zA-Z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
+        // ── Multi-vendor Ownership ──────────────────────────────────────────────
+        vendor: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Seller",
+            required: [true, "Vendor is required"],
+            index: true,
+        },
+        brand: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Brand",
+            index: true,
+        },
+        brandName: { type: String, trim: true },
 
-    if (!this.slug) {
-      this.slug = "product-" + Date.now();
-    }
-  }
-  next();
-});
+        // ── Taxonomy & Classification ────────────────────────────────────────────
+        category: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Category",
+            required: [true, "Category is required"],
+            index: true,
+        },
+        subCategory: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Category",
+            index: true,
+        },
+        tags: [{ type: String, trim: true, index: true }],
+        collections: [{ type: mongoose.Schema.Types.ObjectId, ref: "Collection" }],
 
-// Updated static method to use new discount fields
-productSchema.statics.generateAllVariants = function (variantOptions, baseVariantData = {}) {
-  if (!variantOptions || variantOptions.length === 0) return [];
+        // ── Pricing & Discounts ──────────────────────────────────────────────────
+        price: { type: moneySchema, required: true },
+        compareAtPrice: { type: moneySchema },
+        discount: { type: discountSchema },
+        taxRate: { type: Number, default: 0, min: 0, max: 100 },
+        isTaxable: { type: Boolean, default: true },
 
-  const generateCombinations = (options, currentIndex = 0, currentCombination = []) => {
-    if (currentIndex === options.length) {
-      return [currentCombination];
-    }
+        // ── Inventory Management ─────────────────────────────────────────────────
+        sku: { type: String, unique: true, sparse: true, index: true },
+        stock: { type: Number, default: 0, min: 0, index: true },
+        reservedStock: { type: Number, default: 0 },
+        lowStockThreshold: { type: Number, default: 5, min: 0 },
+        backorderAllowed: { type: Boolean, default: false },
+        maxOrderQuantity: { type: Number, default: 0 },
+        minOrderQuantity: { type: Number, default: 1, min: 1 },
 
-    const currentOption = options[currentIndex];
-    const combinations = [];
+        // ── Media Assets ─────────────────────────────────────────────────────────
+        thumbnail: { type: thumbnailSchema, required: true },
+        images: [imageSchema],
+        videos: [videoSchema],
 
-    for (const value of currentOption.values) {
-      const newCombination = [
-        ...currentCombination,
-        { name: currentOption.name, value: value }
-      ];
-      combinations.push(...generateCombinations(options, currentIndex + 1, newCombination));
-    }
+        // ── Product Variations ───────────────────────────────────────────────────
+        hasVariants: { type: Boolean, default: false },
+        variantOptions: [variantOptionSchema],
+        variants: [variantCombinationSchema],
 
-    return combinations;
-  };
+        // ── Attributes & Specifications ──────────────────────────────────────────
+        attributes: [productAttributeSchema],
 
-  const allCombinations = generateCombinations(variantOptions);
+        // ── Shipping & Delivery ──────────────────────────────────────────────────
+        delivery: { type: deliverySchema },
+        returnPolicy: { type: String },
+        warrantyInfo: { type: String },
+        countryOfOrigin: { type: String, trim: true },
 
-  return allCombinations.map((combination, index) => ({
-    options: combination,
-    basePrice: baseVariantData.basePrice || 0,
-    discountType: baseVariantData.discountType || "none",
-    discountValue: baseVariantData.discountValue || 0,
-    stock: 0,
-    imageGroupName: baseVariantData.imageGroupName || '',
-    sku: baseVariantData.sku ? `${baseVariantData.sku}-${index + 1}` : `VAR-${index + 1}`
-  }));
-};
+        // ── SEO & Metadata ───────────────────────────────────────────────────────
+        seo: { type: seoSchema },
 
-// Pricing Calculation Middleware
-function calculatePrice(basePrice, discountType, discountValue) {
-  if (discountType === "percentage") {
-    return Math.max(0, basePrice - (basePrice * discountValue) / 100);
-  } else if (discountType === "fixed") {
-    return Math.max(0, basePrice - discountValue);
-  }
-  return basePrice;
-}
+        // ── Ratings & Reviews Summary ────────────────────────────────────────────
+        rating: {
+            average: {
+                type: Number,
+                default: 0,
+                min: 0,
+                max: 5,
+                set: (v) => Math.round(v * 10) / 10,
+            },
+            count: { type: Number, default: 0, min: 0 },
+            distribution: {
+                1: { type: Number, default: 0 },
+                2: { type: Number, default: 0 },
+                3: { type: Number, default: 0 },
+                4: { type: Number, default: 0 },
+                5: { type: Number, default: 0 },
+            },
+        },
 
-// Main pre-save hook for price calculation
-productSchema.pre("save", function (next) {
-  // Main product price calculation
-  if (this.discountType !== "none" && this.discountValue > 0) {
-    this.price = calculatePrice(this.basePrice, this.discountType, this.discountValue);
-  } else {
-    this.price = this.basePrice;
-  }
+        // ── Analytics ─────────────────────────────────────────────────────────────
+        analytics: {
+            views: { type: Number, default: 0, min: 0 },
+            salesCount: { type: Number, default: 0, min: 0 },
+            wishlistCount: { type: Number, default: 0, min: 0 },
+            shareCount: { type: Number, default: 0, min: 0 },
+        },
 
-  // Variant price calculation - IMPORTANT
-  if (this.hasVariants && this.variants && this.variants.length > 0) {
-    this.variants = this.variants.map((variant) => {
-      const variantBasePrice = variant.basePrice || this.basePrice;
-      let variantPrice = variantBasePrice; // Default price
-      // Use variant discount if available
-      if (variant.discountType && variant.discountType !== "none" && variant.discountValue > 0) {
-        variantPrice = calculatePrice(
-          variantBasePrice,
-          variant.discountType,
-          variant.discountValue
-        );
-      } 
-      // Otherwise use product discount if available 
-      else if (this.discountType !== "none" && this.discountValue > 0) {
-        variantPrice = calculatePrice(
-          variantBasePrice,
-          this.discountType,
-          this.discountValue
-        );
-      }
-      // Return variant with calculated price
-      return {
-        ...variant,
-        price: variantPrice
-      };
-    });
-  }
+        // ── Visibility & Publishing ──────────────────────────────────────────────
+        visibility: {
+            type: String,
+            enum: ["visible", "hidden", "catalog_only", "search_only"],
+            default: "visible",
+            index: true,
+        },
+        status: {
+            type: String,
+            enum: ["draft", "pending_review", "published", "rejected", "archived"],
+            default: "draft",
+            index: true,
+        },
+        isActive: { type: Boolean, default: true, index: true },
+        isFeatured: { type: Boolean, default: false, index: true },
+        isDeleted: { type: Boolean, default: false, index: true },
+        publishedAt: { type: Date },
+        rejectedReason: { type: String },
 
-  next();
-});
+        // ── Date Ranges ───────────────────────────────────────────────────────────
+        availableFrom: { type: Date },
+        availableTo: { type: Date },
 
-productSchema.index({ name: "text", description: "text", brand: "text" });
-productSchema.index({ category: 1, isActive: 1 });
-productSchema.index({ price: 1, isActive: 1 });
-productSchema.index({ isFeatured: 1, isActive: 1 });
-productSchema.index({ slug: 1 });
-productSchema.index({ sku: 1 });
+        // ── Audit Trail ──────────────────────────────────────────────────────────
+        createdBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            refPath: "creatorModel",
+            required: true,
+        },
+        creatorModel: {
+            type: String,
+            enum: ["Seller", "AdminUser"],
+            required: true,
+        },
+        approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "AdminUser" },
+        approvedAt: { type: Date },
+        lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, refPath: "lastModifiedByModel" },
+        lastModifiedByModel: { type: String, enum: ["Seller", "AdminUser"] },
+
+        // ─── Extra Data ──────────────────────────────────────────────────────────
+        metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+    },
+    {
+        timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true },
+    },
+);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// INDEXES
+// ──────────────────────────────────────────────────────────────────────────────
+productSchema.index({ title: "text", shortDescription: "text", description: "text" });
+productSchema.index({ vendor: 1, status: 1 });
+productSchema.index({ category: 1, status: 1, isActive: 1 });
+productSchema.index({ "price.amount": 1, status: 1 });
 productSchema.index({ createdAt: -1 });
-productSchema.index({ discountType: 1, discountValue: 1 });
-// Text index with weights
-productSchema.index({
-  name: "text",
-  description: "text",
-  brand: "text",
-  slug: "text"
-}, {
-  weights: {
-    name: 10,
-    slug: 5,
-    description: 2,
-    brand: 3
-  }
+productSchema.index({ publishedAt: -1 });
+productSchema.index({ "rating.average": -1 });
+productSchema.index({ "analytics.salesCount": -1 });
+productSchema.index({ isFeatured: 1, status: 1 });
+productSchema.index({ availableFrom: 1, availableTo: 1 });
+productSchema.index({ tags: 1 });
+productSchema.index({ status: 1, isActive: 1, isDeleted: 1 });
+productSchema.index({ vendor: 1, status: 1, isActive: 1 });
+productSchema.index({ category: 1, "price.amount": 1, "rating.average": 1 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PRE-SAVE MIDDLEWARES
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Auto-generate slug
+productSchema.pre("save", async function (next) {
+    if (this.isModified("title") && this.title) {
+        let baseSlug = makeSlug(this.title);
+        let slug = baseSlug;
+        let counter = 1;
+
+        const existingProduct = await this.constructor.findOne({ slug, _id: { $ne: this._id } });
+        if (existingProduct) {
+            slug = `${baseSlug}-${counter}`;
+            while (await this.constructor.findOne({ slug, _id: { $ne: this._id } })) {
+                counter++;
+                slug = `${baseSlug}-${counter}`;
+            }
+        }
+        this.slug = slug;
+
+        if (this.seo) {
+            this.seo.slug = this.slug;
+        }
+    }
+    next();
 });
 
-// Newly added pre-save hook for image URL transformation date: 11 january 2024
-productSchema.pre('save', function(next) {
-  if (this.imageGroups && this.imageGroups.length > 0) {
-    this.imageGroups.forEach(group => {
-      if (group.images && group.images.length > 0) {
-        group.images.forEach(image => {
-          if (image.url && image.url.includes('cloudinary')) {
-            image.url = image.url.replace('/upload/', '/upload/w_200,h_200,c_fill/');
-          }
+// Calculate discount effective price
+productSchema.pre("save", function (next) {
+    if (this.discount && this.discount.type !== "none" && this.discount.value > 0) {
+        let effectivePrice = this.price.amount;
+        if (this.discount.type === "percentage") {
+            effectivePrice = this.price.amount * (1 - this.discount.value / 100);
+        } else if (this.discount.type === "fixed") {
+            effectivePrice = Math.max(0, this.price.amount - this.discount.value);
+        }
+        this.discount.effectivePrice = Math.round(effectivePrice * 100) / 100;
+    } else if (this.discount) {
+        this.discount.effectivePrice = this.price.amount;
+    }
+
+    if (this.hasVariants && this.variants && this.variants.length > 0) {
+        this.variants.forEach((variant) => {
+            if (
+                variant.discount &&
+                variant.discount.type !== "none" &&
+                variant.discount.value > 0
+            ) {
+                let variantEffectivePrice = variant.price.amount;
+                if (variant.discount.type === "percentage") {
+                    variantEffectivePrice =
+                        variant.price.amount * (1 - variant.discount.value / 100);
+                } else if (variant.discount.type === "fixed") {
+                    variantEffectivePrice = Math.max(
+                        0,
+                        variant.price.amount - variant.discount.value,
+                    );
+                }
+                variant.discount.effectivePrice = Math.round(variantEffectivePrice * 100) / 100;
+            } else if (variant.discount) {
+                variant.discount.effectivePrice = variant.price.amount;
+            }
         });
-      }
-    });
-  }
-  next();
+    }
+
+    next();
 });
 
-// Virtual fields
-productSchema.virtual('discountAmount').get(function() {
-  if (this.discountType === "percentage") {
-    return (this.basePrice * this.discountValue) / 100;
-  } else if (this.discountType === "fixed") {
-    return this.discountValue;
-  }
-  return 0;
+// Set published date when status changes to published
+productSchema.pre("save", function (next) {
+    if (this.isModified("status") && this.status === "published" && !this.publishedAt) {
+        this.publishedAt = new Date();
+    }
+    next();
 });
 
-productSchema.virtual('isOnSale').get(function() {
-  return this.discountType !== "none" && this.discountValue > 0;
+// Auto-set isActive based on availability dates
+productSchema.pre("save", function (next) {
+    const now = new Date();
+    if (this.availableFrom && this.availableTo) {
+        const isWithinRange = now >= this.availableFrom && now <= this.availableTo;
+        if (this.status === "published") {
+            this.isActive = isWithinRange;
+        }
+    }
+    next();
 });
 
-// Final price calculation method (for manual use if needed)
-productSchema.methods.calculateFinalPrice = function() {
-  return calculatePrice(this.basePrice, this.discountType, this.discountValue);
+// Ensure SKU uniqueness when variants exist
+productSchema.pre("save", async function (next) {
+    if (this.hasVariants && this.variants && this.variants.length > 0) {
+        const skus = new Set();
+        for (const variant of this.variants) {
+            if (skus.has(variant.sku)) {
+                return next(new Error(`Duplicate SKU found: ${variant.sku}`));
+            }
+            skus.add(variant.sku);
+        }
+    }
+    next();
+});
+
+// Calculate total stock from variants
+productSchema.pre("save", function (next) {
+    if (this.hasVariants && this.variants && this.variants.length > 0) {
+        const totalStock = this.variants.reduce((sum, variant) => sum + variant.stock, 0);
+        this.stock = totalStock;
+    }
+    next();
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// VIRTUAL FIELDS
+// ──────────────────────────────────────────────────────────────────────────────
+
+productSchema.virtual("currentPrice").get(function () {
+    if (this.discount && this.discount.type !== "none" && this.discount.value > 0) {
+        return this.discount.effectivePrice;
+    }
+    return this.price.amount;
+});
+
+productSchema.virtual("isOnSale").get(function () {
+    return this.discount && this.discount.type !== "none" && this.discount.value > 0;
+});
+
+productSchema.virtual("discountPercentage").get(function () {
+    if (this.discount && this.discount.type === "percentage") {
+        return this.discount.value;
+    } else if (this.discount && this.discount.type === "fixed" && this.price.amount > 0) {
+        return Math.round((this.discount.value / this.price.amount) * 100);
+    }
+    return 0;
+});
+
+productSchema.virtual("availableStock").get(function () {
+    return Math.max(0, this.stock - this.reservedStock);
+});
+
+productSchema.virtual("inStock").get(function () {
+    return this.availableStock > 0 || this.backorderAllowed;
+});
+
+productSchema.virtual("isLowStock").get(function () {
+    return this.availableStock <= this.lowStockThreshold && this.availableStock > 0;
+});
+
+productSchema.virtual("isOutOfStock").get(function () {
+    return this.availableStock <= 0 && !this.backorderAllowed;
+});
+
+productSchema.virtual("formattedPrice").get(function () {
+    return `${this.price.currency} ${this.currentPrice.toFixed(2)}`;
+});
+
+productSchema.virtual("url").get(function () {
+    return `/product/${this.slug}`;
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// INSTANCE METHODS
+// ──────────────────────────────────────────────────────────────────────────────
+
+productSchema.methods.isAvailable = function () {
+    const now = new Date();
+    const isWithinDateRange =
+        (!this.availableFrom || now >= this.availableFrom) &&
+        (!this.availableTo || now <= this.availableTo);
+    return this.status === "published" && this.isActive && !this.isDeleted && isWithinDateRange;
 };
 
-// Variant final price calculation method
-variantSchema.methods.calculateFinalPrice = function(productDiscountType, productDiscountValue) {
-  const variantBasePrice = this.basePrice;
-  
-  if (this.discountType !== "none" && this.discountValue > 0) {
-    return calculatePrice(variantBasePrice, this.discountType, this.discountValue);
-  } else if (productDiscountType && productDiscountType !== "none" && productDiscountValue > 0) {
-    return calculatePrice(variantBasePrice, productDiscountType, productDiscountValue);
-  }
-  
-  return variantBasePrice;
+productSchema.methods.updateStock = async function (quantity, isReserve = false) {
+    if (isReserve) {
+        if (this.availableStock < quantity) {
+            throw new Error(`Insufficient stock. Available: ${this.availableStock}`);
+        }
+        this.reservedStock += quantity;
+    } else {
+        if (this.stock < quantity) {
+            throw new Error(`Insufficient stock. Available: ${this.stock}`);
+        }
+        this.stock -= quantity;
+    }
+    await this.save();
 };
 
-export default mongoose.model("Product", productSchema);
+productSchema.methods.releaseReservedStock = async function (quantity) {
+    this.reservedStock = Math.max(0, this.reservedStock - quantity);
+    await this.save();
+};
+
+productSchema.methods.getVariantByCombination = function (combination) {
+    return this.variants?.find(
+        (variant) => JSON.stringify(variant.combination) === JSON.stringify(combination),
+    );
+};
+
+productSchema.methods.updateRating = async function (newRating, oldRating = null) {
+    let totalRating = this.rating.average * this.rating.count;
+
+    if (oldRating !== null) {
+        totalRating -= oldRating;
+        this.rating.distribution[oldRating] = Math.max(0, this.rating.distribution[oldRating] - 1);
+    }
+
+    totalRating += newRating;
+    this.rating.distribution[newRating] = (this.rating.distribution[newRating] || 0) + 1;
+    this.rating.count += oldRating === null ? 1 : 0;
+    this.rating.average = totalRating / this.rating.count;
+
+    await this.save();
+};
+
+productSchema.methods.incrementAnalytics = async function (field) {
+    if (this.analytics[field] !== undefined) {
+        this.analytics[field]++;
+        await this.save();
+    }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STATIC METHODS
+// ──────────────────────────────────────────────────────────────────────────────
+
+productSchema.statics.generateVariantCombinations = function (variantOptions, baseData = {}) {
+    if (!variantOptions || variantOptions.length === 0) return [];
+
+    const generateCombinations = (options, currentIndex = 0, currentCombination = []) => {
+        if (currentIndex === options.length) {
+            return [currentCombination];
+        }
+
+        const currentOption = options[currentIndex];
+        const combinations = [];
+
+        for (const value of currentOption.values) {
+            const newCombination = [
+                ...currentCombination,
+                { name: currentOption.name, value: value },
+            ];
+            combinations.push(...generateCombinations(options, currentIndex + 1, newCombination));
+        }
+
+        return combinations;
+    };
+
+    const allCombinations = generateCombinations(variantOptions);
+
+    return allCombinations.map((combination, index) => ({
+        combination,
+        sku: baseData.sku ? `${baseData.sku}-${String(index + 1).padStart(3, "0")}` : null,
+        price: baseData.price || { amount: 0, currency: "BDT" },
+        compareAtPrice: baseData.compareAtPrice || null,
+        discount: baseData.discount || { type: "none", value: 0 },
+        stock: 0,
+        images: [],
+        isActive: true,
+        sortOrder: index,
+    }));
+};
+
+productSchema.statics.bulkUpdate = async function (productIds, updateData, vendorId) {
+    const filter = { _id: { $in: productIds } };
+    if (vendorId) {
+        filter.vendor = vendorId;
+    }
+
+    return this.updateMany(filter, updateData, { multi: true });
+};
+
+productSchema.statics.getFeaturedProducts = function (limit = 10, category = null) {
+    const filter = {
+        isFeatured: true,
+        status: "published",
+        isActive: true,
+        isDeleted: false,
+    };
+
+    if (category) {
+        filter.category = category;
+    }
+
+    return this.find(filter)
+        .sort({ "analytics.salesCount": -1, createdAt: -1 })
+        .limit(limit)
+        .populate("vendor", "storeName logo")
+        .populate("brand", "name slug")
+        .populate("category", "name slug path");
+};
+
+productSchema.statics.searchProducts = async function (searchTerm, filters = {}, pagination = {}) {
+    const { page = 1, limit = 20, sortBy = "relevance" } = pagination;
+    const skip = (page - 1) * limit;
+
+    let query = { status: "published", isActive: true, isDeleted: false };
+
+    if (searchTerm) {
+        query.$text = { $search: searchTerm };
+    }
+
+    if (filters.category) query.category = filters.category;
+    if (filters.vendor) query.vendor = filters.vendor;
+    if (filters.brand) query.brand = filters.brand;
+    if (filters.minPrice || filters.maxPrice) {
+        query["price.amount"] = {};
+        if (filters.minPrice) query["price.amount"].$gte = filters.minPrice;
+        if (filters.maxPrice) query["price.amount"].$lte = filters.maxPrice;
+    }
+    if (filters.tags) query.tags = { $in: filters.tags };
+    if (filters.hasVariants !== undefined) query.hasVariants = filters.hasVariants;
+    if (filters.inStock) query.stock = { $gt: 0 };
+
+    let sort = {};
+    switch (sortBy) {
+        case "price_asc":
+            sort = { "price.amount": 1 };
+            break;
+        case "price_desc":
+            sort = { "price.amount": -1 };
+            break;
+        case "rating":
+            sort = { "rating.average": -1 };
+            break;
+        case "newest":
+            sort = { publishedAt: -1 };
+            break;
+        case "best_selling":
+            sort = { "analytics.salesCount": -1 };
+            break;
+        default:
+            sort = searchTerm ? { score: { $meta: "textScore" } } : { publishedAt: -1 };
+    }
+
+    const results = await this.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .populate("vendor", "storeName logo")
+        .populate("brand", "name slug")
+        .populate("category", "name slug path");
+
+    const total = await this.countDocuments(query);
+
+    return {
+        products: results,
+        pagination: {
+            page,
+            limit,
+            total,
+            pages: Math.ceil(total / limit),
+        },
+    };
+};
+
+const Product = mongoose.model("Product", productSchema);
+export default Product;
