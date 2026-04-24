@@ -28,16 +28,41 @@ const discountSchema = new mongoose.Schema(
 );
 
 // SEO schema
+
 const seoSchema = new mongoose.Schema(
     {
-        slug: { type: String, unique: true, sparse: true },
-        metaTitle: { type: String, maxlength: 70 },
-        metaDescription: { type: String, maxlength: 160 },
-        canonicalUrl: { type: String },
-        keywords: [{ type: String }],
-        schema: { type: mongoose.Schema.Types.Mixed },
+        slug: { 
+            type: String, 
+            unique: true, 
+            sparse: true 
+        },
+        metaTitle: { 
+            type: String, 
+            maxlength: 70,
+            default: "" 
+        },
+        metaDescription: { 
+            type: String, 
+            maxlength: 160,
+            default: "" 
+        },
+        canonicalUrl: { 
+            type: String,
+            default: "" 
+        },
+        keywords: {
+            type: [String],
+            default: undefined  // Don't set default, let it be undefined if not provided
+        },
+        schema: { 
+            type: mongoose.Schema.Types.Mixed,
+            default: undefined
+        },
     },
-    { _id: false },
+    { 
+        _id: false,
+        strict: true,  // Use strict mode
+    },
 );
 
 // Thumbnail schema

@@ -69,7 +69,28 @@ export const createProduct = async (req, res) => {
         const productData = JSON.parse(req.body.data || "{}");
         const seller = req.seller;
 
-        // ── Validation ──────────────────────────────────────────────────────
+        console.log("📦 Creating product:", {
+            title: productData.title,
+            seller: seller._id,
+            hasImages: !!files?.images,
+            hasThumbnail: !!files?.thumbnail,
+        });
+
+        // ── Generate slug from title ────────────────────────
+        if (productData.title) {
+            let baseSlug = makeSlug(productData.title);
+            let slug = baseSlug;
+            let counter = 1;
+
+            // Check for existing slugs
+            while (await Product.findOne({ slug })) {
+                slug = `${baseSlug}-${counter}`;
+                counter++;
+            }
+            productData.slug = slug;
+        }
+
+        // ── Validation ──────────────────────────────────────
         const validationErrors = validateProductInput(productData);
         if (validationErrors) {
             cleanupFiles(files);
@@ -80,155 +101,292 @@ export const createProduct = async (req, res) => {
             });
         }
 
-        // ── Category check ───────────────────────────────────────────────────
+        // ── Category check ──────────────────────────────────
         const category = await Category.findById(productData.category);
         if (!category) {
             cleanupFiles(files);
-            return res.status(404).json({ success: false, message: "Category not found" });
+            return res.status(404).json({ 
+                success: false, 
+                message: "Category not found" 
+            });
         }
 
         if (productData.subCategory) {
             const subCategory = await Category.findById(productData.subCategory);
             if (!subCategory) {
                 cleanupFiles(files);
-                return res.status(404).json({ success: false, message: "Sub-category not found" });
+                return res.status(404).json({ 
+                    success: false, 
+                    message: "Sub-category not found" 
+                });
             }
         }
 
-        // ── SKU uniqueness ───────────────────────────────────────────────────
+        // ── SKU uniqueness ──────────────────────────────────
         if (productData.sku) {
             const skuExists = await Product.findOne({ sku: productData.sku });
             if (skuExists) {
                 cleanupFiles(files);
-                return res.status(400).json({ success: false, message: "SKU already exists" });
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "SKU already exists" 
+                });
             }
         }
 
-        // ── Thumbnail ────────────────────────────────────────────────────────
+        // ── Thumbnail ───────────────────────────────────────
         let thumbnail;
         if (files?.thumbnail?.[0]) {
             thumbnail = getFileInfo(files.thumbnail[0]);
+            thumbnail.alt = productData.title || "Product thumbnail";
         } else if (productData.thumbnailUrl) {
             thumbnail = { url: productData.thumbnailUrl, alt: productData.title };
         } else {
             cleanupFiles(files);
-            return res.status(400).json({ success: false, message: "Product thumbnail is required" });
+            return res.status(400).json({ 
+                success: false, 
+                message: "Product thumbnail is required" 
+            });
         }
 
-        // ── Gallery images ───────────────────────────────────────────────────
+        // ── Gallery images ──────────────────────────────────
         const images = (files?.images || []).map((file, index) => ({
             ...getFileInfo(file),
             alt: `${productData.title} - Image ${index + 1}`,
             sortOrder: index,
         }));
 
-        // ── Variant images (grouped by index) ────────────────────────────────
+        // Add existing images from update
+        if (productData.existingImages && Array.isArray(productData.existingImages)) {
+            images.push(...productData.existingImages);
+        }
+
+        // ── Variant images ──────────────────────────────────
         const variantImagesMap = {};
-        (files?.variantImages || []).forEach((file, index) => {
-            const key = file.fieldname.match(/variantImages\[(\d+)\]/)?.[1] ?? index;
-            if (!variantImagesMap[key]) variantImagesMap[key] = [];
-            variantImagesMap[key].push(getFileInfo(file));
-        });
-
-        // ── Variants ─────────────────────────────────────────────────────────
-        let variants = [];
-        let parsedVariantOptions = [];
-        if (productData.hasVariants && productData.variantOptions) {
-            parsedVariantOptions =
-                typeof productData.variantOptions === "string"
-                    ? JSON.parse(productData.variantOptions)
-                    : productData.variantOptions;
-
-            variants = Product.generateVariantCombinations(parsedVariantOptions, {
-                sku: productData.sku,
-                price: productData.price,
-                discount: productData.discount,
-            });
-
-            variants.forEach((variant, idx) => {
-                if (variantImagesMap[idx]) variant.images = variantImagesMap[idx];
+        if (files?.variantImages) {
+            files.variantImages.forEach((file, index) => {
+                const key = file.fieldname.match(/variantImages\[(\d+)\]/)?.[1] ?? index;
+                if (!variantImagesMap[key]) variantImagesMap[key] = [];
+                variantImagesMap[key].push(getFileInfo(file));
             });
         }
 
-        // ── Effective price ──────────────────────────────────────────────────
+        // ── Variants ────────────────────────────────────────
+        let variants = [];
+        let parsedVariantOptions = [];
+        
+        if (productData.hasVariants && productData.variantOptions) {
+            parsedVariantOptions = typeof productData.variantOptions === "string"
+                ? JSON.parse(productData.variantOptions)
+                : productData.variantOptions;
+
+            if (parsedVariantOptions.length > 0) {
+                variants = Product.generateVariantCombinations(parsedVariantOptions, {
+                    sku: productData.sku,
+                    price: productData.price,
+                    compareAtPrice: productData.compareAtPrice,
+                    discount: productData.discount,
+                });
+
+                // Assign variant images
+                variants.forEach((variant, idx) => {
+                    if (variantImagesMap[idx]) {
+                        variant.images = variantImagesMap[idx];
+                    }
+                });
+            }
+        }
+
+        // ── Effective price ─────────────────────────────────
         const effectivePrice = calcEffectivePrice(
             productData.price?.amount ?? 0,
             productData.discount,
         );
 
-        // ── Build document ───────────────────────────────────────────────────
+        // ── Prepare SEO data ────────────────────────────────
+        const seoData = {};
+
+// Only add slug if it exists
+if (productData.slug) {
+    seoData.slug = productData.slug;
+}
+
+// Add meta fields if they exist
+if (productData.seo?.metaTitle) {
+    seoData.metaTitle = productData.seo.metaTitle.substring(0, 70);
+} else if (productData.title) {
+    seoData.metaTitle = productData.title.substring(0, 70);
+}
+
+if (productData.seo?.metaDescription) {
+    seoData.metaDescription = productData.seo.metaDescription.substring(0, 160);
+} else if (productData.shortDescription) {
+    seoData.metaDescription = productData.shortDescription.substring(0, 160);
+}
+
+// Handle keywords - only add if there are actual keywords
+if (productData.seo?.keywords) {
+    if (Array.isArray(productData.seo.keywords)) {
+        const filtered = productData.seo.keywords.filter(k => k && typeof k === 'string');
+        if (filtered.length > 0) {
+            seoData.keywords = filtered;
+        }
+    } else if (typeof productData.seo.keywords === 'string' && productData.seo.keywords.trim()) {
+        seoData.keywords = [productData.seo.keywords.trim()];
+    }
+} else if (productData.tags && Array.isArray(productData.tags)) {
+    const filtered = productData.tags.filter(t => t && typeof t === 'string');
+    if (filtered.length > 0) {
+        seoData.keywords = filtered;
+    }
+}
+// If no keywords, don't set the field at all (let it be undefined)
+
+if (productData.seo?.canonicalUrl) {
+    seoData.canonicalUrl = productData.seo.canonicalUrl;
+}
+
+if (productData.seo?.schema && typeof productData.seo.schema === 'object') {
+    seoData.schema = productData.seo.schema;
+}
+
+console.log("SEO Data prepared:", JSON.stringify(seoData, null, 2));
+
+
+
+        // ── Build document ──────────────────────────────────
         const product = new Product({
+            // Identity
             title: productData.title,
-            shortDescription: productData.shortDescription,
+            slug: productData.slug, // ✅ Now slug is generated
+            shortDescription: productData.shortDescription || "",
             description: productData.description,
-            highlights: productData.highlights || [],
+            highlights: Array.isArray(productData.highlights) 
+                ? productData.highlights.filter(h => h && h.trim()) 
+                : [],
+            
+            // Vendor
             vendor: seller._id,
             brand: productData.brand || null,
-            brandName: productData.brandName,
+            brandName: productData.brandName || "",
+            
+            // Taxonomy
             category: productData.category,
             subCategory: productData.subCategory || null,
-            tags: productData.tags ? [...new Set(productData.tags)] : [],
-            price: { amount: productData.price.amount, currency: productData.price.currency || "BDT" },
-            compareAtPrice: productData.compareAtPrice || null,
+            tags: Array.isArray(productData.tags) ? [...new Set(productData.tags)] : [],
+            collections: productData.collections || [],
+            
+            // Pricing
+            price: { 
+                amount: Number(productData.price?.amount) || 0, 
+                currency: productData.price?.currency || "BDT" 
+            },
+            compareAtPrice: productData.compareAtPrice?.amount 
+                ? { amount: Number(productData.compareAtPrice.amount), currency: "BDT" }
+                : null,
             discount: {
                 type: productData.discount?.type || "none",
                 value: productData.discount?.value || 0,
                 effectivePrice,
-                startDate: productData.discount?.startDate,
-                endDate: productData.discount?.endDate,
+                startDate: productData.discount?.startDate || null,
+                endDate: productData.discount?.endDate || null,
             },
-            sku: productData.sku,
-            stock: productData.hasVariants ? 0 : productData.stock || 0,
+            taxRate: productData.taxRate || 0,
+            isTaxable: productData.isTaxable !== undefined ? productData.isTaxable : true,
+            
+            // Inventory
+            sku: productData.sku || undefined,
+            stock: productData.hasVariants ? 0 : (productData.stock || 0),
+            reservedStock: 0,
             lowStockThreshold: productData.lowStockThreshold || 5,
             backorderAllowed: productData.backorderAllowed || false,
             minOrderQuantity: productData.minOrderQuantity || 1,
             maxOrderQuantity: productData.maxOrderQuantity || 0,
+            
+            // Media
             thumbnail,
             images,
+            videos: [],
+            
+            // Variants
             hasVariants: productData.hasVariants || false,
             variantOptions: productData.hasVariants ? parsedVariantOptions : [],
             variants,
-            attributes: productData.attributes || [],
+            
+            // Attributes
+            attributes: Array.isArray(productData.attributes) ? productData.attributes : [],
+            
+            // Shipping
             delivery: {
-                weight: productData.delivery?.weight || 0,
-                dimensions: productData.delivery?.dimensions || { length: 0, width: 0, height: 0 },
+                weight: Number(productData.delivery?.weight) || 0,
+                dimensions: {
+                    length: Number(productData.delivery?.dimensions?.length) || 0,
+                    width: Number(productData.delivery?.dimensions?.width) || 0,
+                    height: Number(productData.delivery?.dimensions?.height) || 0,
+                },
                 shippingClass: productData.delivery?.shippingClass || "standard",
                 isFreeShipping: productData.delivery?.isFreeShipping || false,
-                estimatedDelivery: productData.delivery?.estimatedDelivery,
+                estimatedDelivery: productData.delivery?.estimatedDelivery || "",
                 handlingTime: productData.delivery?.handlingTime || 1,
             },
-            returnPolicy: productData.returnPolicy,
-            warrantyInfo: productData.warrantyInfo,
-            countryOfOrigin: productData.countryOfOrigin,
-            seo: {
-                metaTitle: productData.seo?.metaTitle || productData.title.slice(0, 70),
-                metaDescription: productData.seo?.metaDescription || productData.shortDescription?.slice(0, 160) || "",
-                keywords: productData.seo?.keywords || productData.tags || [],
-                canonicalUrl: productData.seo?.canonicalUrl,
-            },
+            returnPolicy: productData.returnPolicy || "",
+            warrantyInfo: productData.warrantyInfo || "",
+            countryOfOrigin: productData.countryOfOrigin || "",
+            
+            // SEO
+            seo: Object.keys(seoData).length > 0 ? seoData : undefined,
+            
+            // Status
             visibility: productData.visibility || "visible",
             status: productData.publishImmediately ? "pending_review" : (productData.status || "draft"),
-            availableFrom: productData.availableFrom,
-            availableTo: productData.availableTo,
-            isTaxable: productData.isTaxable !== false,
-            taxRate: productData.taxRate || 0,
+            isActive: true,
+            isFeatured: productData.isFeatured || false,
+            isDeleted: false,
+            
+            // Dates
+            availableFrom: productData.availableFrom || null,
+            availableTo: productData.availableTo || null,
+            
+            // Audit
             createdBy: seller._id,
             creatorModel: "Seller",
             lastModifiedBy: seller._id,
             lastModifiedByModel: "Seller",
+            
+            // Metadata
             metadata: productData.metadata || {},
         });
 
         await product.save();
+
+        console.log("✅ Product created:", product._id, product.slug);
 
         return res.status(201).json({
             success: true,
             message: "Product created successfully",
             data: product,
         });
+        
     } catch (error) {
+        // Cleanup files on error
         cleanupFiles(files);
+        
         console.error("createProduct error:", error);
+        
+        // Handle validation errors
+        if (error.name === 'ValidationError') {
+            const errors = Object.keys(error.errors).map(key => ({
+                field: key,
+                message: error.errors[key].message
+            }));
+            
+            return res.status(400).json({
+                success: false,
+                message: "Validation failed",
+                errors,
+            });
+        }
+        
         return res.status(500).json({
             success: false,
             message: "Failed to create product",
@@ -237,94 +395,55 @@ export const createProduct = async (req, res) => {
     }
 };
 
+// Helper to cleanup uploaded files
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  GET ALL SELLER PRODUCTS  (with filtering, search, pagination)
 //  GET /seller/products
 // ─────────────────────────────────────────────────────────────────────────────
+// আপনার product controller এ getSellerProducts function এ brand populate ফিক্স করুন
 export const getSellerProducts = async (req, res) => {
     try {
         const seller = req.seller;
-        const {
-            page = 1,
-            limit = 20,
-            status,
-            category,
-            subCategory,
-            search,
-            sortBy = "newest",
-            hasVariants,
-            minPrice,
-            maxPrice,
-            minStock,
-            maxStock,
-            isFeatured,
-            visibility,
-            tags,
-        } = req.query;
+        const { page = 1, limit = 12, sortBy = "createdAt", sortOrder = "desc" } = req.query;
 
-        const query = { vendor: seller._id, isDeleted: false };
+        const query = { 
+            vendor: seller._id,
+            isDeleted: { $ne: true }
+        };
 
-        if (status) {
-            const statusArr = status.split(",").map((s) => s.trim());
-            query.status = { $in: statusArr };
-        }
-        if (category) query.category = category;
-        if (subCategory) query.subCategory = subCategory;
-        if (hasVariants !== undefined) query.hasVariants = hasVariants === "true";
-        if (isFeatured !== undefined) query.isFeatured = isFeatured === "true";
-        if (visibility) query.visibility = visibility;
-        if (tags) query.tags = { $in: tags.split(",").map((t) => t.trim()) };
+        const sortOptions = {};
+        sortOptions[sortBy] = sortOrder === "desc" ? -1 : 1;
 
-        if (minPrice || maxPrice) {
-            query["price.amount"] = {};
-            if (minPrice) query["price.amount"].$gte = parseFloat(minPrice);
-            if (maxPrice) query["price.amount"].$lte = parseFloat(maxPrice);
-        }
+        const products = await Product.find(query)
+            .sort(sortOptions)
+            .skip((page - 1) * parseInt(limit))
+            .limit(parseInt(limit))
+            .populate("category", "name slug") // Category হবে
+            .populate("subCategory", "name slug") // SubCategory হবে
+            .populate("brand", "name slug logo") // Brand এখন কাজ করবে
+            .lean();
 
-        if (minStock !== undefined || maxStock !== undefined) {
-            query.stock = {};
-            if (minStock !== undefined) query.stock.$gte = parseInt(minStock);
-            if (maxStock !== undefined) query.stock.$lte = parseInt(maxStock);
-        }
-
-        if (search) {
-            query.$or = [
-                { title: { $regex: search, $options: "i" } },
-                { sku: { $regex: search, $options: "i" } },
-                { tags: { $regex: search, $options: "i" } },
-            ];
-        }
-
-        const pageNum = Math.max(1, parseInt(page));
-        const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
-
-        const [products, total] = await Promise.all([
-            Product.find(query)
-                .sort(buildSort(sortBy))
-                .skip((pageNum - 1) * limitNum)
-                .limit(limitNum)
-                .populate("category", "name slug")
-                .populate("subCategory", "name slug")
-                .populate("brand", "name slug")
-                .select("-description -attributes -variants -seo -metadata"),
-            Product.countDocuments(query),
-        ]);
+        const total = await Product.countDocuments(query);
 
         return res.status(200).json({
             success: true,
             data: products,
             pagination: {
-                page: pageNum,
-                limit: limitNum,
+                page: parseInt(page),
+                limit: parseInt(limit),
                 total,
-                pages: Math.ceil(total / limitNum),
-                hasNextPage: pageNum < Math.ceil(total / limitNum),
-                hasPrevPage: pageNum > 1,
+                pages: Math.ceil(total / parseInt(limit)),
             },
         });
     } catch (error) {
         console.error("getSellerProducts error:", error);
-        return res.status(500).json({ success: false, message: "Failed to fetch products", error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch products",
+            error: error.message,
+        });
     }
 };
 

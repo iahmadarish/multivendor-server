@@ -29,6 +29,7 @@ import pageMetaRoutes from "./routes/pageMeta.js";
 import cookieParser from "cookie-parser";
 import sellerAuthRoutes from "./modules/seller/sellerAuth.routes.js";
 import adminSellerRoutes from "./modules/admin/adminSeller.routes.js";
+import brandRoutes from "./modules/brand/brand.routes.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -99,6 +100,7 @@ app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/aplus-content", aplusContentRoutes);
 app.use("/api/v1/page-meta", pageMetaRoutes);
 app.use("/api/v1/admin/sellers", adminSellerRoutes);
+app.use("/api/v1/brands", brandRoutes);
 
 app.get("/health", (req, res) => {
     res.status(200).json({

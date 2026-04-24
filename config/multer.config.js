@@ -2,6 +2,10 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Ensure upload directories exist
 const ensureDirectoryExists = (dir) => {
@@ -60,7 +64,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage: storage,
     limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB limit for videos, 5MB for images handled in controller
+        fileSize: 50 * 1024 * 1024, // 50MB limit
     },
     fileFilter: fileFilter,
 });
@@ -79,33 +83,53 @@ export const deleteFiles = (filePaths) => {
     filePaths.forEach((filePath) => deleteFile(filePath));
 };
 
-// Helper to get file info
+// Helper to get file info (SYNCHRONOUS - without sharp)
 export const getFileInfo = (file) => {
     if (!file) return null;
 
-    // Get image dimensions if it's an image
-    let width = null,
-        height = null;
-    if (file.mimetype.startsWith("image/")) {
-        try {
-            const sharp = require("sharp");
-            const metadata = sharp(file.path).metadata();
-            width = metadata.width;
-            height = metadata.height;
-        } catch (error) {
-            console.error("Error getting image dimensions:", error);
-        }
-    }
-
-    return {
+    // Basic file info without dimensions (dimensions are optional)
+    const fileInfo = {
         url: `/${file.path.replace(/\\/g, "/")}`,
         filename: file.filename,
         originalName: file.originalname,
         size: file.size,
         mimetype: file.mimetype,
-        width: width,
-        height: height,
+        width: null,
+        height: null,
     };
+
+    return fileInfo;
+};
+
+// Optional: Async version with sharp if you need dimensions
+export const getFileInfoAsync = async (file) => {
+    if (!file) return null;
+
+    const fileInfo = {
+        url: `/${file.path.replace(/\\/g, "/")}`,
+        filename: file.filename,
+        originalName: file.originalname,
+        size: file.size,
+        mimetype: file.mimetype,
+        width: null,
+        height: null,
+    };
+
+    // Get dimensions for images
+    if (file.mimetype && file.mimetype.startsWith('image/')) {
+        try {
+            // Dynamic import for sharp (optional dependency)
+            const sharp = (await import('sharp')).default;
+            const metadata = await sharp(file.path).metadata();
+            fileInfo.width = metadata.width;
+            fileInfo.height = metadata.height;
+        } catch (error) {
+            // sharp not installed or error - dimensions are optional
+            console.warn('Could not get image dimensions (sharp not installed):', file.originalname);
+        }
+    }
+
+    return fileInfo;
 };
 
 export default upload;
