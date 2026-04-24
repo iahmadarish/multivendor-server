@@ -1,4 +1,3 @@
-// models/product.model.js
 import mongoose from "mongoose";
 import { makeSlug } from "../../utils/makeSlug.js";
 
@@ -11,7 +10,6 @@ const moneySchema = new mongoose.Schema(
     { _id: false },
 );
 
-// Discount schema with pre-computed effective price
 const discountSchema = new mongoose.Schema(
     {
         type: {
@@ -27,7 +25,6 @@ const discountSchema = new mongoose.Schema(
     { _id: false },
 );
 
-// SEO schema
 
 const seoSchema = new mongoose.Schema(
     {
@@ -52,7 +49,7 @@ const seoSchema = new mongoose.Schema(
         },
         keywords: {
             type: [String],
-            default: undefined  // Don't set default, let it be undefined if not provided
+            default: undefined  
         },
         schema: { 
             type: mongoose.Schema.Types.Mixed,
@@ -61,11 +58,11 @@ const seoSchema = new mongoose.Schema(
     },
     { 
         _id: false,
-        strict: true,  // Use strict mode
+        strict: true,  
     },
 );
 
-// Thumbnail schema
+
 const thumbnailSchema = new mongoose.Schema(
     {
         url: { type: String, required: true },
@@ -80,7 +77,7 @@ const thumbnailSchema = new mongoose.Schema(
     { _id: false },
 );
 
-// Image schema
+
 const imageSchema = new mongoose.Schema(
     {
         url: { type: String, required: true },
@@ -96,7 +93,7 @@ const imageSchema = new mongoose.Schema(
     { _id: false },
 );
 
-// Video schema
+
 const videoSchema = new mongoose.Schema(
     {
         url: { type: String, required: true },
@@ -108,7 +105,7 @@ const videoSchema = new mongoose.Schema(
     { _id: false },
 );
 
-// Variant option schema
+
 const variantOptionSchema = new mongoose.Schema(
     {
         name: { type: String, required: true, trim: true },
@@ -123,7 +120,7 @@ const variantOptionSchema = new mongoose.Schema(
     { _id: false },
 );
 
-// Variant combination schema
+
 const variantCombinationSchema = new mongoose.Schema(
     {
         combination: [
@@ -153,7 +150,7 @@ const variantCombinationSchema = new mongoose.Schema(
     { timestamps: true, _id: true },
 );
 
-// Product attribute schema
+
 const productAttributeSchema = new mongoose.Schema(
     {
         groupName: { type: String, default: "General", trim: true },
@@ -166,7 +163,7 @@ const productAttributeSchema = new mongoose.Schema(
     { _id: false },
 );
 
-// Delivery/shipping schema
+
 const deliverySchema = new mongoose.Schema(
     {
         weight: { type: Number, default: 0, min: 0 },
@@ -187,10 +184,9 @@ const deliverySchema = new mongoose.Schema(
     { _id: false },
 );
 
-// Main Product Schema
+
 const productSchema = new mongoose.Schema(
     {
-        // ── Identity & Basic Info ──────────────────────────────────────────────
         title: {
             type: String,
             required: [true, "Product title is required"],
@@ -576,17 +572,14 @@ productSchema.methods.getVariantByCombination = function (combination) {
 
 productSchema.methods.updateRating = async function (newRating, oldRating = null) {
     let totalRating = this.rating.average * this.rating.count;
-
     if (oldRating !== null) {
         totalRating -= oldRating;
         this.rating.distribution[oldRating] = Math.max(0, this.rating.distribution[oldRating] - 1);
     }
-
     totalRating += newRating;
     this.rating.distribution[newRating] = (this.rating.distribution[newRating] || 0) + 1;
     this.rating.count += oldRating === null ? 1 : 0;
     this.rating.average = totalRating / this.rating.count;
-
     await this.save();
 };
 
@@ -608,7 +601,6 @@ productSchema.statics.generateVariantCombinations = function (variantOptions, ba
         if (currentIndex === options.length) {
             return [currentCombination];
         }
-
         const currentOption = options[currentIndex];
         const combinations = [];
 
@@ -619,12 +611,10 @@ productSchema.statics.generateVariantCombinations = function (variantOptions, ba
             ];
             combinations.push(...generateCombinations(options, currentIndex + 1, newCombination));
         }
-
         return combinations;
     };
 
     const allCombinations = generateCombinations(variantOptions);
-
     return allCombinations.map((combination, index) => ({
         combination,
         sku: baseData.sku ? `${baseData.sku}-${String(index + 1).padStart(3, "0")}` : null,
@@ -643,7 +633,6 @@ productSchema.statics.bulkUpdate = async function (productIds, updateData, vendo
     if (vendorId) {
         filter.vendor = vendorId;
     }
-
     return this.updateMany(filter, updateData, { multi: true });
 };
 
@@ -654,7 +643,7 @@ productSchema.statics.getFeaturedProducts = function (limit = 10, category = nul
         isActive: true,
         isDeleted: false,
     };
-
+    
     if (category) {
         filter.category = category;
     }

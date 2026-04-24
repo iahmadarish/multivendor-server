@@ -1,7 +1,3 @@
-// validators/product.validator.js
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 const isValidObjectId = (id) => /^[a-f\d]{24}$/i.test(id);
 
 const isValidUrl = (url) => {

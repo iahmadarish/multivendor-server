@@ -11,7 +11,6 @@ import {
 } from "../../validators/product.validator.js";
 import { makeSlug } from "../../utils/makeSlug.js";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * Clean up uploaded files (used on validation/error)
@@ -20,11 +19,7 @@ const cleanupFiles = (files) => {
     if (!files) return;
     Object.values(files)
         .flat()
-        .forEach((file) => {
-            if (file.path && fs.existsSync(file.path)) {
-                fs.unlinkSync(file.path);
-            }
-        });
+        .forEach((file) => {if (file.path && fs.existsSync(file.path)) {fs.unlinkSync(file.path);}});
 };
 
 /**
@@ -32,12 +27,8 @@ const cleanupFiles = (files) => {
  */
 const calcEffectivePrice = (priceAmount, discount) => {
     if (!discount || discount.type === "none" || !discount.value) return priceAmount;
-    if (discount.type === "percentage") {
-        return Math.round(priceAmount * (1 - discount.value / 100) * 100) / 100;
-    }
-    if (discount.type === "fixed") {
-        return Math.round(Math.max(0, priceAmount - discount.value) * 100) / 100;
-    }
+    if (discount.type === "percentage") {return Math.round(priceAmount * (1 - discount.value / 100) * 100) / 100;}
+    if (discount.type === "fixed") {return Math.round(Math.max(0, priceAmount - discount.value) * 100) / 100;}
     return priceAmount;
 };
 
@@ -69,7 +60,7 @@ export const createProduct = async (req, res) => {
         const productData = JSON.parse(req.body.data || "{}");
         const seller = req.seller;
 
-        console.log("📦 Creating product:", {
+        console.log("Creating product:", {
             title: productData.title,
             seller: seller._id,
             hasImages: !!files?.images,
@@ -82,11 +73,9 @@ export const createProduct = async (req, res) => {
             let slug = baseSlug;
             let counter = 1;
 
-            // Check for existing slugs
             while (await Product.findOne({ slug })) {
                 slug = `${baseSlug}-${counter}`;
-                counter++;
-            }
+                counter++;}
             productData.slug = slug;
         }
 
@@ -179,7 +168,7 @@ export const createProduct = async (req, res) => {
             parsedVariantOptions = typeof productData.variantOptions === "string"
                 ? JSON.parse(productData.variantOptions)
                 : productData.variantOptions;
-
+                
             if (parsedVariantOptions.length > 0) {
                 variants = Product.generateVariantCombinations(parsedVariantOptions, {
                     sku: productData.sku,
@@ -188,7 +177,6 @@ export const createProduct = async (req, res) => {
                     discount: productData.discount,
                 });
 
-                // Assign variant images
                 variants.forEach((variant, idx) => {
                     if (variantImagesMap[idx]) {
                         variant.images = variantImagesMap[idx];
@@ -402,7 +390,6 @@ console.log("SEO Data prepared:", JSON.stringify(seoData, null, 2));
 //  GET ALL SELLER PRODUCTS  (with filtering, search, pagination)
 //  GET /seller/products
 // ─────────────────────────────────────────────────────────────────────────────
-// আপনার product controller এ getSellerProducts function এ brand populate ফিক্স করুন
 export const getSellerProducts = async (req, res) => {
     try {
         const seller = req.seller;
