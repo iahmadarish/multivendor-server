@@ -1,8 +1,6 @@
-// modules/product/product.model.js
 import mongoose from "mongoose";
 import { makeSlug } from "../../utils/makeSlug.js";
 
-// Money schema for precise pricing
 const moneySchema = new mongoose.Schema(
     {
         amount: { type: Number, required: true, min: 0 },
