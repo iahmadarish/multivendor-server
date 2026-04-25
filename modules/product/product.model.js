@@ -1,3 +1,4 @@
+// modules/product/product.model.js
 import mongoose from "mongoose";
 import { makeSlug } from "../../utils/makeSlug.js";
 
@@ -25,43 +26,41 @@ const discountSchema = new mongoose.Schema(
     { _id: false },
 );
 
-
 const seoSchema = new mongoose.Schema(
     {
-        slug: { 
-            type: String, 
-            unique: true, 
-            sparse: true 
-        },
-        metaTitle: { 
-            type: String, 
-            maxlength: 70,
-            default: "" 
-        },
-        metaDescription: { 
-            type: String, 
-            maxlength: 160,
-            default: "" 
-        },
-        canonicalUrl: { 
+        slug: {
             type: String,
-            default: "" 
+            unique: true,
+            sparse: true,
+        },
+        metaTitle: {
+            type: String,
+            maxlength: 70,
+            default: "",
+        },
+        metaDescription: {
+            type: String,
+            maxlength: 160,
+            default: "",
+        },
+        canonicalUrl: {
+            type: String,
+            default: "",
         },
         keywords: {
             type: [String],
-            default: undefined  
+            default: undefined,
         },
-        schema: { 
+        schema: {
             type: mongoose.Schema.Types.Mixed,
-            default: undefined
+            default: undefined,
         },
     },
-    { 
+    {
         _id: false,
-        strict: true,  
+        strict: true,
     },
 );
-
 
 const thumbnailSchema = new mongoose.Schema(
     {
@@ -76,7 +75,6 @@ const thumbnailSchema = new mongoose.Schema(
     },
     { _id: false },
 );
-
 
 const imageSchema = new mongoose.Schema(
     {
@@ -93,7 +91,6 @@ const imageSchema = new mongoose.Schema(
     { _id: false },
 );
 
-
 const videoSchema = new mongoose.Schema(
     {
         url: { type: String, required: true },
@@ -104,7 +101,6 @@ const videoSchema = new mongoose.Schema(
     },
     { _id: false },
 );
-
 
 const variantOptionSchema = new mongoose.Schema(
     {
@@ -120,7 +116,6 @@ const variantOptionSchema = new mongoose.Schema(
     { _id: false },
 );
 
-
 const variantCombinationSchema = new mongoose.Schema(
     {
         combination: [
@@ -130,7 +125,7 @@ const variantCombinationSchema = new mongoose.Schema(
                 _id: false,
             },
         ],
-        sku: { type: String, required: true, unique: true, sparse: true },
+        sku: { type: String, unique: true, sparse: true },
         barcode: { type: String },
         price: { type: moneySchema, required: true },
         compareAtPrice: { type: moneySchema },
@@ -150,7 +145,6 @@ const variantCombinationSchema = new mongoose.Schema(
     { timestamps: true, _id: true },
 );
 
-
 const productAttributeSchema = new mongoose.Schema(
     {
         groupName: { type: String, default: "General", trim: true },
@@ -162,7 +156,6 @@ const productAttributeSchema = new mongoose.Schema(
     },
     { _id: false },
 );
-
 
 const deliverySchema = new mongoose.Schema(
     {
@@ -183,7 +176,6 @@ const deliverySchema = new mongoose.Schema(
     },
     { _id: false },
 );
-
 
 const productSchema = new mongoose.Schema(
     {
@@ -210,6 +202,7 @@ const productSchema = new mongoose.Schema(
             required: [true, "Product description is required"],
         },
         highlights: [{ type: String, trim: true }],
+        bulletPoints: [{ type: String, trim: true }], // Added for product highlights
 
         // ── Multi-vendor Ownership ──────────────────────────────────────────────
         vendor: {
@@ -224,6 +217,7 @@ const productSchema = new mongoose.Schema(
             index: true,
         },
         brandName: { type: String, trim: true },
+        model: { type: String, trim: true }, // Added for product model
 
         // ── Taxonomy & Classification ────────────────────────────────────────────
         category: {
@@ -274,6 +268,7 @@ const productSchema = new mongoose.Schema(
         returnPolicy: { type: String },
         warrantyInfo: { type: String },
         countryOfOrigin: { type: String, trim: true },
+        hsCode: { type: String, trim: true }, // Added for international shipping
 
         // ── SEO & Metadata ───────────────────────────────────────────────────────
         seo: { type: seoSchema },
@@ -323,6 +318,7 @@ const productSchema = new mongoose.Schema(
         isDeleted: { type: Boolean, default: false, index: true },
         publishedAt: { type: Date },
         rejectedReason: { type: String },
+        adminNote: { type: String }, // Added for admin feedback on rejection
 
         // ── Date Ranges ───────────────────────────────────────────────────────────
         availableFrom: { type: Date },
@@ -466,10 +462,12 @@ productSchema.pre("save", async function (next) {
     if (this.hasVariants && this.variants && this.variants.length > 0) {
         const skus = new Set();
         for (const variant of this.variants) {
-            if (skus.has(variant.sku)) {
+            if (variant.sku && skus.has(variant.sku)) {
                 return next(new Error(`Duplicate SKU found: ${variant.sku}`));
             }
-            skus.add(variant.sku);
+            if (variant.sku) {
+                skus.add(variant.sku);
+            }
         }
     }
     next();
@@ -478,7 +476,7 @@ productSchema.pre("save", async function (next) {
 // Calculate total stock from variants
 productSchema.pre("save", function (next) {
     if (this.hasVariants && this.variants && this.variants.length > 0) {
-        const totalStock = this.variants.reduce((sum, variant) => sum + variant.stock, 0);
+        const totalStock = this.variants.reduce((sum, variant) => sum + (variant.stock || 0), 0);
         this.stock = totalStock;
     }
     next();
@@ -509,7 +507,7 @@ productSchema.virtual("discountPercentage").get(function () {
 });
 
 productSchema.virtual("availableStock").get(function () {
-    return Math.max(0, this.stock - this.reservedStock);
+    return Math.max(0, (this.stock || 0) - (this.reservedStock || 0));
 });
 
 productSchema.virtual("inStock").get(function () {
@@ -549,18 +547,18 @@ productSchema.methods.updateStock = async function (quantity, isReserve = false)
         if (this.availableStock < quantity) {
             throw new Error(`Insufficient stock. Available: ${this.availableStock}`);
         }
-        this.reservedStock += quantity;
+        this.reservedStock = (this.reservedStock || 0) + quantity;
     } else {
-        if (this.stock < quantity) {
+        if ((this.stock || 0) < quantity) {
             throw new Error(`Insufficient stock. Available: ${this.stock}`);
         }
-        this.stock -= quantity;
+        this.stock = (this.stock || 0) - quantity;
     }
     await this.save();
 };
 
 productSchema.methods.releaseReservedStock = async function (quantity) {
-    this.reservedStock = Math.max(0, this.reservedStock - quantity);
+    this.reservedStock = Math.max(0, (this.reservedStock || 0) - quantity);
     await this.save();
 };
 
@@ -571,20 +569,23 @@ productSchema.methods.getVariantByCombination = function (combination) {
 };
 
 productSchema.methods.updateRating = async function (newRating, oldRating = null) {
-    let totalRating = this.rating.average * this.rating.count;
+    let totalRating = (this.rating.average || 0) * (this.rating.count || 0);
     if (oldRating !== null) {
         totalRating -= oldRating;
-        this.rating.distribution[oldRating] = Math.max(0, this.rating.distribution[oldRating] - 1);
+        this.rating.distribution[oldRating] = Math.max(
+            0,
+            (this.rating.distribution[oldRating] || 0) - 1,
+        );
     }
     totalRating += newRating;
     this.rating.distribution[newRating] = (this.rating.distribution[newRating] || 0) + 1;
-    this.rating.count += oldRating === null ? 1 : 0;
-    this.rating.average = totalRating / this.rating.count;
+    this.rating.count = (this.rating.count || 0) + (oldRating === null ? 1 : 0);
+    this.rating.average = totalRating / (this.rating.count || 1);
     await this.save();
 };
 
 productSchema.methods.incrementAnalytics = async function (field) {
-    if (this.analytics[field] !== undefined) {
+    if (this.analytics && this.analytics[field] !== undefined) {
         this.analytics[field]++;
         await this.save();
     }
@@ -643,7 +644,7 @@ productSchema.statics.getFeaturedProducts = function (limit = 10, category = nul
         isActive: true,
         isDeleted: false,
     };
-    
+
     if (category) {
         filter.category = category;
     }

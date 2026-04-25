@@ -2,10 +2,14 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Base URL for uploaded files
+const BASE_URL = process.env.BASE_URL || "https://api.zuzuva.com";
+const NODE_ENV = process.env.NODE_ENV || "development";
 
 // Ensure upload directories exist
 const ensureDirectoryExists = (dir) => {
@@ -30,8 +34,9 @@ const storage = multer.diskStorage({
             folder = "uploads/products/videos";
         }
 
-        ensureDirectoryExists(folder);
-        cb(null, folder);
+        const fullPath = path.join(process.cwd(), folder);
+        ensureDirectoryExists(fullPath);
+        cb(null, fullPath);
     },
     filename: (req, file, cb) => {
         // Generate unique filename: timestamp-randomstring-originalname
@@ -54,7 +59,7 @@ const fileFilter = (req, file, cb) => {
     const mimetype = allowedImageTypes.test(file.mimetype) || allowedVideoTypes.test(file.mimetype);
 
     if (extname && mimetype) {
-        return cb(null, true);
+        cb(null, true);
     } else {
         cb(new Error("Only image and video files are allowed!"));
     }
@@ -69,10 +74,65 @@ const upload = multer({
     fileFilter: fileFilter,
 });
 
+// Helper function to get full URL for a file
+export const getFullImageUrl = (filePath) => {
+    if (!filePath) return null;
+
+    // If it's already a full URL, return as is
+    if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+        return filePath;
+    }
+
+    // Remove leading slash if present
+    let cleanPath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+
+    // Return full URL
+    return `${BASE_URL}/${cleanPath}`;
+};
+
+// Helper function to get file info with full URL
+export const getFileInfo = (file) => {
+    if (!file) return null;
+
+    // Get relative path from project root
+    const relativePath = path.relative(process.cwd(), file.path);
+
+    // Get URL path (replace backslashes with forward slashes)
+    const urlPath = relativePath.replace(/\\/g, "/");
+
+    const fileInfo = {
+        url: getFullImageUrl(urlPath),
+        filename: file.filename,
+        originalName: file.originalname,
+        size: file.size,
+        mimetype: file.mimetype,
+        width: null,
+        height: null,
+        path: relativePath, // Store relative path for deletion
+    };
+
+    return fileInfo;
+};
+
 // Helper function to delete file
 export const deleteFile = (filePath) => {
-    if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+    if (!filePath) return false;
+
+    // Extract the file system path from URL or direct path
+    let fsPath = filePath;
+
+    // If it's a URL, extract the path part
+    if (filePath.startsWith("http")) {
+        const urlPath = new URL(filePath).pathname;
+        fsPath = path.join(process.cwd(), urlPath);
+    } else {
+        // Remove leading slash if present
+        const cleanPath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+        fsPath = path.join(process.cwd(), cleanPath);
+    }
+
+    if (fs.existsSync(fsPath)) {
+        fs.unlinkSync(fsPath);
         return true;
     }
     return false;
@@ -83,49 +143,37 @@ export const deleteFiles = (filePaths) => {
     filePaths.forEach((filePath) => deleteFile(filePath));
 };
 
-// Helper to get file info (SYNCHRONOUS - without sharp)
-export const getFileInfo = (file) => {
-    if (!file) return null;
-
-    // Basic file info without dimensions (dimensions are optional)
-    const fileInfo = {
-        url: `/${file.path.replace(/\\/g, "/")}`,
-        filename: file.filename,
-        originalName: file.originalname,
-        size: file.size,
-        mimetype: file.mimetype,
-        width: null,
-        height: null,
-    };
-
-    return fileInfo;
-};
-
-// Optional: Async version with sharp if you need dimensions
+// Async version with sharp for dimensions (optional)
 export const getFileInfoAsync = async (file) => {
     if (!file) return null;
 
+    const relativePath = path.relative(process.cwd(), file.path);
+    const urlPath = relativePath.replace(/\\/g, "/");
+
     const fileInfo = {
-        url: `/${file.path.replace(/\\/g, "/")}`,
+        url: getFullImageUrl(urlPath),
         filename: file.filename,
         originalName: file.originalname,
         size: file.size,
         mimetype: file.mimetype,
         width: null,
         height: null,
+        path: relativePath,
     };
 
-    // Get dimensions for images
-    if (file.mimetype && file.mimetype.startsWith('image/')) {
+    // Get dimensions for images (optional - requires sharp)
+    if (file.mimetype && file.mimetype.startsWith("image/")) {
         try {
-            // Dynamic import for sharp (optional dependency)
-            const sharp = (await import('sharp')).default;
+            const sharp = (await import("sharp")).default;
             const metadata = await sharp(file.path).metadata();
             fileInfo.width = metadata.width;
             fileInfo.height = metadata.height;
         } catch (error) {
-            // sharp not installed or error - dimensions are optional
-            console.warn('Could not get image dimensions (sharp not installed):', file.originalname);
+            // sharp not installed - dimensions are optional
+            console.warn(
+                "Could not get image dimensions (sharp not installed):",
+                file.originalname,
+            );
         }
     }
 

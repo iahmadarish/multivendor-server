@@ -39,15 +39,34 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 const app = express();
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 const PORT = process.env.PORT || 5000;
 const API_VERSION = process.env.API_VERSION || "v1";
 
 // Connect to MongoDB
 connectDB();
 
+// Serve static files from uploads directory
+app.use(
+    "/uploads",
+    express.static(path.join(__dirname, "uploads"), {
+        setHeaders: (res, filePath) => {
+            // Cache images for 1 day
+            res.setHeader("Cache-Control", "public, max-age=86400");
+        },
+    }),
+);
+
+// Also serve from root uploads (for compatibility)
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 app.use(helmet());
-const allowedOrigins = ['https://innoel.vercel.app/', 'http://localhost:5173', 'http://localhost:5174', 'https://zuzuva.com',];
+const allowedOrigins = [
+    "https://innoel.vercel.app/",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://zuzuva.com",
+];
 
 app.use(
     cors({

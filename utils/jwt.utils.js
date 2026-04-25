@@ -1,3 +1,4 @@
+// utils/jwt.utils.js
 import jwt from "jsonwebtoken";
 
 /**
@@ -40,4 +41,16 @@ export const verifyAccessToken = (token) => {
  */
 export const verifyRefreshToken = (token) => {
     return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+};
+
+/**
+ * Retrieve a seller from a refresh token.
+ * @param {string} token
+ * @param {Model} SellerModel
+ * @returns {Promise<object>} seller document
+ */
+export const getSellerFromRefreshToken = async (token, SellerModel) => {
+    const decoded = verifyRefreshToken(token);
+    const seller = await SellerModel.findById(decoded.id).select("-password");
+    return seller;
 };
