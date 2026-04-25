@@ -32,7 +32,7 @@ transporter.verify(function (error, success) {
     console.log('2. Verify app password is correct');
     console.log('3. Try enabling less secure apps');
   } else {
-    console.log('SMTP Server is ready to send emails');
+    // console.log('SMTP Server is ready to send emails');
   }
 });
 
