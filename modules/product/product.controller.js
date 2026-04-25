@@ -407,9 +407,9 @@ export const getSellerProducts = async (req, res) => {
             .sort(sortOptions)
             .skip((page - 1) * parseInt(limit))
             .limit(parseInt(limit))
-            .populate("category", "name slug") // Category হবে
-            .populate("subCategory", "name slug") // SubCategory হবে
-            .populate("brand", "name slug logo") // Brand এখন কাজ করবে
+            .populate("category", "name slug") 
+            .populate("subCategory", "name slug") 
+            .populate("brand", "name slug logo") 
             .lean();
 
         const total = await Product.countDocuments(query);
