@@ -49,26 +49,32 @@ export const getAllBrands = async (req, res) => {
             page = 1, 
             limit = 20, 
             search,
-            isActive = true 
+            isActive // Remove default value
         } = req.query;
 
         const query = { isDeleted: false };
         
-        if (isActive !== undefined) {
+        // ONLY filter by isActive if explicitly provided
+        if (isActive !== undefined && isActive !== '') {
             query.isActive = isActive === 'true';
         }
+        // If isActive is not provided or empty, show all brands
         
         if (search) {
             query.name = { $regex: search, $options: 'i' };
         }
 
+        console.log('Query:', query); // Debug log
+
         const brands = await Brand.find(query)
-            .sort({ name: 1 })
+            .sort({ createdAt: -1 }) // Sort by newest first (easier to see new brands)
             .skip((page - 1) * limit)
             .limit(parseInt(limit))
             .lean();
 
         const total = await Brand.countDocuments(query);
+
+        console.log(`Found ${brands.length} brands`); // Debug log
 
         return res.status(200).json({
             success: true,
