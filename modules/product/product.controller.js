@@ -35,20 +35,20 @@ const calcEffectivePrice = (priceAmount, discount) => {
 /**
  * Build sort object from query param
  */
-const buildSort = (sortBy) => {
-    const sortMap = {
-        newest: { createdAt: -1 },
-        oldest: { createdAt: 1 },
-        price_asc: { "price.amount": 1 },
-        price_desc: { "price.amount": -1 },
-        sales: { "analytics.salesCount": -1 },
-        stock_asc: { stock: 1 },
-        stock_desc: { stock: -1 },
-        rating: { "rating.average": -1 },
-        views: { "analytics.views": -1 },
-    };
-    return sortMap[sortBy] || { createdAt: -1 };
-};
+// const buildSort = (sortBy) => {
+//     const sortMap = {
+//         newest: { createdAt: -1 },
+//         oldest: { createdAt: 1 },
+//         price_asc: { "price.amount": 1 },
+//         price_desc: { "price.amount": -1 },
+//         sales: { "analytics.salesCount": -1 },
+//         stock_asc: { stock: 1 },
+//         stock_desc: { stock: -1 },
+//         rating: { "rating.average": -1 },
+//         views: { "analytics.views": -1 },
+//     };
+//     return sortMap[sortBy] || { createdAt: -1 };
+// };
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CREATE PRODUCT

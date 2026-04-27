@@ -1,6 +1,6 @@
 // controllers/brand.controller.js
 import Brand from "./brand.model.js";
-import { makeSlug } from "../../utils/makeSlug.js";
+// import { makeSlug } from "../../utils/makeSlug.js";
 
 // Create Brand (Admin only)
 export const createBrand = async (req, res) => {
@@ -45,26 +45,26 @@ export const createBrand = async (req, res) => {
 // Get all brands (Public)
 export const getAllBrands = async (req, res) => {
     try {
-        const { 
-            page = 1, 
-            limit = 20, 
+        const {
+            page = 1,
+            limit = 20,
             search,
-            isActive // Remove default value
+            isActive, // Remove default value
         } = req.query;
 
         const query = { isDeleted: false };
-        
+
         // ONLY filter by isActive if explicitly provided
-        if (isActive !== undefined && isActive !== '') {
-            query.isActive = isActive === 'true';
+        if (isActive !== undefined && isActive !== "") {
+            query.isActive = isActive === "true";
         }
         // If isActive is not provided or empty, show all brands
-        
+
         if (search) {
-            query.name = { $regex: search, $options: 'i' };
+            query.name = { $regex: search, $options: "i" };
         }
 
-        console.log('Query:', query); // Debug log
+        console.log("Query:", query); // Debug log
 
         const brands = await Brand.find(query)
             .sort({ createdAt: -1 }) // Sort by newest first (easier to see new brands)
@@ -200,9 +200,9 @@ export const getBrandDropdown = async (req, res) => {
             isActive: true,
             isDeleted: false,
         })
-        .select("name slug logo")
-        .sort({ name: 1 })
-        .lean();
+            .select("name slug logo")
+            .sort({ name: 1 })
+            .lean();
 
         return res.status(200).json({
             success: true,
