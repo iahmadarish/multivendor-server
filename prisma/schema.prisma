@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                           Int       @id @default(autoincrement())
+  name                         String    @db.VarChar(100)
+  email                        String    @unique
+  password                     String
+  phoneNumber                  String?
+  role                         Role      @default(USER)
+  isEmailVerified              Boolean   @default(false)
+  emailVerificationOTP         String?
+  emailVerificationOTPExpire   DateTime?
+  resetPasswordOTP             String?
+  resetPasswordOTPExpire       DateTime?
+  profilePicture               String    @default("")
+  dateOfBirth                  DateTime? @db.Date
+  gender                       Gender    @default(EMPTY)
+  preferences                  Json      @default("{\"newsletter\": true, \"smsNotifications\": false, \"emailNotifications\": true}")
+  lastLogin                    DateTime?
+  loginCount                   Int       @default(0)
+  status                       Status    @default(ACTIVE)
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+
+  // Relations
+  shippingAddresses ShippingAddress[]
+
+  @@map("users")
+}
+
+model ShippingAddress {
+  id           Int          @id @default(autoincrement())
+  userId       Int
+  fullName     String
+  phoneNumber  String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  zipCode      String
+  country      String       @default("Bangladesh")
+  isDefault    Boolean      @default(false)
+  addressType  AddressType  @default(HOME)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("shipping_addresses")
+}
+
+enum Role {
+  USER
+  ADMIN
+  EDITOR
+  EXECUTIVE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  EMPTY @map("")
+}
+
+enum Status {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum AddressType {
+  HOME
+  OFFICE
+  OTHER
+}

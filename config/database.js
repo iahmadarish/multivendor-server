@@ -1,13 +1,27 @@
-import mongoose from "mongoose";
+import { PrismaClient } from "@prisma/client";
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+});
+
+const adapter = new PrismaPg(pool);
+
+const prisma = new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+});
 
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGO_URI);
-        console.log("✅ DATABASE Connected");
-    } catch (err) {
-        console.error("Database Connection Failed:", err.message);
+        await prisma.$connect();
+        console.log("✅ PostgreSQL connected successfully via Prisma");
+    } catch (error) {
+        console.error("❌ PostgreSQL connection failed:", error);
         process.exit(1);
     }
 };
 
-export default connectDB;
+export { connectDB };
+export default prisma;

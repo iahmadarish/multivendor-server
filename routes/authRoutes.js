@@ -5,7 +5,7 @@ import {
   logout,
   getMe,
   verifyEmail,
-  resendVerification,
+  // resendVerification,
   forgotPassword,
   resetPassword,
   updateProfile,
@@ -20,7 +20,7 @@ const router = express.Router();
 // Public routes
 router.post('/register', register);
 router.post('/verify-email', verifyEmail);
-router.post('/resend-verification', resendVerification);
+// router.post('/resend-verification', resendVerification);
 router.post('/login', login);
 router.post('/forgot-password', forgotPassword);
 router.put('/reset-password', resetPassword);
