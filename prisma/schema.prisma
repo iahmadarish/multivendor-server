@@ -59,6 +59,7 @@ model ShippingAddress {
 enum Role {
   USER
   ADMIN
+  SUPER_ADMIN
   EDITOR
   EXECUTIVE
 }
