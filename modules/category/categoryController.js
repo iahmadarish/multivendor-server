@@ -1,321 +1,74 @@
+import { CategoryModel } from "./Category.js"
 
-
-import Category from "./Category.js"
-import { asyncHandler } from "../../utils/asyncHandler.js"
-import { APIFeatures } from "../../utils/apiFeatures.js"
-import { deleteImageFile, getImageUrl, getFilePathFromUrl } from "../../utils/uploadCategoryImage.js"
-
-
-// @desc    Get all categories with tree structure
-// @route   GET /api/v1/categories/tree
-// @access  Public
-export const getCategoryTree = asyncHandler(async (req, res) => {
-  const { 
-    maxDepth = 40,
-    includeInactive = 'false',
-    includeContent = 'true',
-    minimal = 'false'
-  } = req.query;
-
-
-  let selectFields = 'name slug description parentCategory displayOrder isActive _id';
-  
-  if (includeContent === 'true') {
-    selectFields += ' image aplusContent metaTitle metaDescription metaKeywords';
+export const getCategories = async (req, res) => {
+  try {
+    const categories = await CategoryModel.findAll()
+    res.json({ success: true, data: categories })
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message })
   }
-  
-  if (minimal === 'true') {
-    selectFields = 'name slug parentCategory _id';
+}
+
+export const getCategory = async (req, res) => {
+  try {
+    const category = await CategoryModel.findById(req.params.id)
+    if (!category) return res.status(404).json({ success: false, error: "Category not found" })
+    res.json({ success: true, data: category })
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message })
   }
+}
 
-
-  const filter = {};
-  if (includeInactive !== 'true') {
-    filter.isActive = true;
-  }
-
-
-  const categories = await Category.find(filter)
-    .select(selectFields)
-    .sort({ displayOrder: 1, name: 1 })
-    .lean();
-
-
-  const optimizeCategoryData = (category) => {
-    const optimized = { ...category };
-    
-    // Limit aplusContent size if too big
-    if (optimized.aplusContent && optimized.aplusContent.length > 5000) {
-      optimized.aplusContent = optimized.aplusContent.substring(0, 5000) + '...';
-      optimized.aplusContentTruncated = true;
+export const createCategory = async (req, res) => {
+  try {
+    const category = await CategoryModel.create(req.body)
+    res.status(201).json({ success: true, data: category })
+  } catch (error) {
+    if (error.code === "P2002") {
+      return res.status(400).json({ success: false, error: "Slug must be unique" })
     }
-    
-    // Optimize image URL if needed
-    if (optimized.image?.url && optimized.image.url.includes('cloudinary')) {
-      // Add image optimization parameters
-      optimized.image.thumbnail = optimized.image.url.replace(
-        '/upload/', 
-        '/upload/w_300,h_300,c_fill/'
-      );
+    res.status(500).json({ success: false, error: error.message })
+  }
+}
+
+export const updateCategory = async (req, res) => {
+  try {
+    const category = await CategoryModel.update(req.params.id, req.body)
+    res.json({ success: true, data: category })
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ success: false, error: "Category not found" })
     }
-    
-    return optimized;
-  };
+    res.status(500).json({ success: false, error: error.message })
+  }
+}
 
-
-  const categoryMap = new Map();
-  
-  // First pass: create optimized entries
-  categories.forEach(category => {
-    categoryMap.set(category._id.toString(), {
-      ...optimizeCategoryData(category),
-      children: []
-    });
-  });
-
-
-  const rootCategories = [];
-  
-  categories.forEach(category => {
-    const categoryObj = categoryMap.get(category._id.toString());
-    
-    if (category.parentCategory && categoryMap.has(category.parentCategory.toString())) {
-      const parent = categoryMap.get(category.parentCategory.toString());
-      parent.children.push(categoryObj);
-    } else {
-      rootCategories.push(categoryObj);
+export const deleteCategory = async (req, res) => {
+  try {
+    await CategoryModel.delete(req.params.id)
+    res.json({ success: true, message: "Category deleted" })
+  } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ success: false, error: "Category not found" })
     }
-  });
-
-
-  const limitDepth = (nodes, currentDepth = 0) => {
-    if (currentDepth >= maxDepth) {
-      return nodes.map(node => {
-        const { children, ...nodeWithoutChildren } = node;
-        return {
-          ...nodeWithoutChildren,
-          children: [],
-          hasMoreChildren: children.length > 0
-        };
-      });
-    }
-
-    return nodes.map(node => ({
-      ...node,
-      children: limitDepth(node.children, currentDepth + 1)
-    }));
-  };
-
-  const finalTree = maxDepth ? limitDepth(rootCategories) : rootCategories;
-
-  res.status(200).json({
-    success: true,
-    count: categories.length,
-    data: finalTree,
-    maxDepth: parseInt(maxDepth),
-    includeContent: includeContent === 'true',
-    optimized: true,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// @desc    Get all categories (flat list)
-// @route   GET /api/v1/categories
-// @access  Public
-export const getCategories = asyncHandler(async (req, res) => {
-  const features = new APIFeatures(Category.find(), req.query)
-    .filter()
-    .search(["name", "description"])
-    .sort()
-    .limitFields()
-    .paginate()
-  const categories = await features.query.select("+aplusContent").populate("parentCategory", "name slug")
-  const total = await Category.countDocuments()
-  res.status(200).json({
-    success: true,
-    count: categories.length,
-    total,
-    data: categories,
-  })
-})
-
-// @desc    Get single category
-// @route   GET /api/v1/categories/:id
-// @access  Public
-export const getCategory = asyncHandler(async (req, res) => {
-  const category = await Category.findById(req.params.id).populate("parentCategory", "name slug").populate("children")
-
-  if (!category) {
-    return res.status(404).json({
-      success: false,
-      error: "Category not found",
-    })
+    res.status(500).json({ success: false, error: error.message })
   }
+}
 
-  res.status(200).json({
-    success: true,
-    data: category,
-  })
-})
-
-// @desc    Create new category
-// @route   POST /api/v1/categories
-// @access  Private/Admin
-export const createCategory = asyncHandler(async (req, res) => {
-  const categoryData = { ...req.body }
-
-  if (req.file) {
-    categoryData.image = {
-      url: getImageUrl(req.file.filename),
-      public_id: req.file.filename, 
-    }
+export const getCategoryTree = async (req, res) => {
+  try {
+    const tree = await CategoryModel.getCategoryTree()
+    res.json({ success: true, data: tree })
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message })
   }
+}
 
-  const category = await Category.create(categoryData)
-
-  res.status(201).json({
-    success: true,
-    data: category,
-  })
-})
-
-// @desc    Update category
-// @route   PUT /api/v1/categories/:id
-// @access  Private/Admin
-export const updateCategory = asyncHandler(async (req, res) => {
-  let category = await Category.findById(req.params.id)
-
-  if (!category) {
-    return res.status(404).json({
-      success: false,
-      error: "Category not found",
-    })
+export const getCategoryPath = async (req, res) => {
+  try {
+    const path = await CategoryModel.getBreadcrumbPath(req.params.id)
+    res.json({ success: true, data: path })
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message })
   }
-
-  const updateData = { ...req.body }
-
-  if (req.file) {
-    // Delete old image if exists
-    if (category.image?.url) {
-      const oldImagePath = getFilePathFromUrl(category.image.url)
-      deleteImageFile(oldImagePath)
-    }
-
-    // Set new image
-    updateData.image = {
-      url: getImageUrl(req.file.filename),
-      public_id: req.file.filename,
-    }
-  }
-
-  category = await Category.findByIdAndUpdate(req.params.id, updateData, {
-    new: true,
-    runValidators: true,
-  })
-
-  res.status(200).json({
-    success: true,
-    data: category,
-  })
-})
-
-// @desc    Delete category
-// @route   DELETE /api/v1/categories/:id
-// @access  Private/Admin
-export const deleteCategory = asyncHandler(async (req, res) => {
-  const category = await Category.findById(req.params.id)
-
-  if (!category) { return res.status(404).json({success: false,error: "Category not found",})}
-
-  // Check if category has children
-  const hasChildren = await Category.findOne({ parentCategory: req.params.id })
-  if (hasChildren) {
-    return res.status(400).json({
-      success: false,
-      error: "Cannot delete category with subcategories",
-    })
-  }
-
-  if (category.image?.url) {
-    const imagePath = getFilePathFromUrl(category.image.url)
-    deleteImageFile(imagePath)
-  }
-
-  await category.deleteOne()
-
-  res.status(200).json({
-    success: true,
-    data: {},
-  })
-})
-
-// @desc    Get category path/breadcrumb
-// @route   GET /api/v1/categories/:id/path
-// @access  Public
-export const getCategoryPath = asyncHandler(async (req, res) => {
-  const category = await Category.findById(req.params.id)
-
-  if (!category) {
-    return res.status(404).json({
-      success: false,
-      error: "Category not found",
-    })
-  }
-
-  const path = []
-  let current = category
-
-  while (current) {
-    path.unshift({
-      _id: current._id,
-      name: current.name,
-      slug: current.slug,
-    })
-
-    if (current.parentCategory) {
-      current = await Category.findById(current.parentCategory)
-    } else {
-      current = null
-    }
-  }
-
-  res.status(200).json({
-    success: true,
-    data: path,
-  })
-})
-
-// @desc    Delete category image
-// @route   DELETE /api/v1/categories/:id/image
-// @access  Private/Admin
-export const deleteCategoryImage = asyncHandler(async (req, res) => {
-  const category = await Category.findById(req.params.id)
-
-  if (!category) {
-    return res.status(404).json({
-      success: false,
-      error: "Category not found",
-    })
-  }
-
-  if (!category.image?.url) {
-    return res.status(400).json({
-      success: false,
-      error: "No image to delete",
-    })
-  }
-
-  // Delete image file
-  const imagePath = getFilePathFromUrl(category.image.url)
-  deleteImageFile(imagePath)
-
-  // Remove image from database
-  category.image = undefined
-  await category.save()
-
-  res.status(200).json({
-    success: true,
-    message: "Image deleted successfully",
-    data: category,
-  })
-})
+}

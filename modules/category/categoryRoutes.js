@@ -1,22 +1,33 @@
 import express from "express"
 import {
   getCategories,
-  getCategoryTree,
   getCategory,
   createCategory,
   updateCategory,
   deleteCategory,
+  getCategoryTree,
   getCategoryPath,
-  deleteCategoryImage,
 } from "./categoryController.js"
-import { uploadCategoryImage } from "../../utils/uploadCategoryImage.js"
 
 const router = express.Router()
 
-router.route("/tree").get(getCategoryTree)
-router.route("/:id/path").get(getCategoryPath)
-router.route("/").get(getCategories).post(uploadCategoryImage, createCategory)
-router.route("/:id").get(getCategory).put(uploadCategoryImage, updateCategory).delete(deleteCategory)
-router.route("/:id/image").delete(deleteCategoryImage)
+// Validation middleware
+const validateCategory = (req, res, next) => {
+  if (!req.body.name || !req.body.slug) {
+    return res.status(400).json({ success: false, error: "Name and slug are required" })
+  }
+  if (req.body.commissionRate && (req.body.commissionRate < 0 || req.body.commissionRate > 1)) {
+    return res.status(400).json({ success: false, error: "Commission rate must be between 0 and 1" })
+  }
+  next()
+}
+
+router.get("/", getCategories)
+router.get("/tree", getCategoryTree)
+router.get("/:id", getCategory)
+router.get("/:id/path", getCategoryPath)
+router.post("/", validateCategory, createCategory)
+router.put("/:id", validateCategory, updateCategory)
+router.delete("/:id", deleteCategory)
 
 export default router

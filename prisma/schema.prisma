@@ -141,6 +141,34 @@ model Seller {
   @@map("sellers")
 }
 
+
+model Category {
+  id              Int       @id @default(autoincrement())
+  name            String    @db.VarChar(255)
+  slug            String    @unique
+  description     String?   @db.VarChar(5000)
+  aplusContent    String?   @default("")
+  parentId        Int?
+  isActive        Boolean   @default(true)
+  imageUrl        String?
+  metaTitle       String?   @db.VarChar(600)
+  metaDescription String?   @db.VarChar(1600)
+  metaKeywords    String[]
+  level           Int       @default(0)
+  path            String    @default("")
+  commissionRate  Float     @default(0.0) // NEW: Commission per category
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  parent   Category? @relation("CategoryChildren", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryChildren")
+
+  @@map("categories")
+}
+
+
+
 // ─── NEW: PendingUpdate Model (MongoDB Subdocument → Separate Table) ───
 model PendingUpdate {
   id         String   @id @default(uuid())
