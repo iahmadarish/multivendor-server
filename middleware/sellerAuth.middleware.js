@@ -1,6 +1,6 @@
 // middleware/sellerAuth.middleware.js
 import { verifyAccessToken } from "../utils/jwt.utils.js";
-import Seller from "../modules/seller/Seller.model.js";
+import prisma from "../config/database.js";
 
 /**
  * ─── protectSeller ────────────────────────────────────────────
@@ -9,7 +9,6 @@ import Seller from "../modules/seller/Seller.model.js";
  */
 export const protectSeller = async (req, res, next) => {
     try {
-        // 1. Extract token from multiple possible locations
         let token;
 
         // Check Authorization header first
@@ -32,11 +31,14 @@ export const protectSeller = async (req, res, next) => {
         // Clean token (remove any quotes)
         const cleanToken = token.replace(/^["']|["']$/g, "");
 
-        // 2. Verify token signature and expiry
+        // Verify token signature and expiry
         const decoded = verifyAccessToken(cleanToken);
 
-        // 3. Fetch seller from DB (ensures seller still exists)
-        const seller = await Seller.findById(decoded.id).select("-password");
+        // Fetch seller from DB
+        const seller = await prisma.seller.findUnique({
+            where: { id: parseInt(decoded.id) },
+        });
+
         if (!seller) {
             return res.status(401).json({
                 success: false,
@@ -67,57 +69,8 @@ export const protectSeller = async (req, res, next) => {
 };
 
 /**
- * Optional: Refresh token middleware
- */
-export const refreshSellerToken = async (req, res) => {
-    try {
-        const refreshToken = req.cookies?.sellerRefreshToken;
-
-        if (!refreshToken) {
-            return res.status(401).json({
-                success: false,
-                message: "No refresh token provided.",
-            });
-        }
-
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-        const seller = await Seller.findById(decoded.id).select("-password");
-
-        if (!seller) {
-            return res.status(401).json({
-                success: false,
-                message: "Seller not found.",
-            });
-        }
-
-        // Generate new access token
-        const newAccessToken = generateAccessToken(seller._id);
-
-        // Set new access token in cookie
-        res.cookie("sellerAccessToken", newAccessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 15 * 60 * 1000, // 15 minutes
-        });
-
-        return res.status(200).json({
-            success: true,
-            message: "Token refreshed successfully",
-            accessToken: newAccessToken,
-        });
-    } catch (error) {
-        return res.status(401).json({
-            success: false,
-            message: "Invalid refresh token.",
-        });
-    }
-};
-
-/**
  * ─── requireApprovedSeller ────────────────────────────────────
  * Ensures the authenticated seller's account has been approved
- * by an admin before accessing protected seller resources.
  */
 export const requireApprovedSeller = (req, res, next) => {
     if (!req.seller || req.seller.status !== "approved") {

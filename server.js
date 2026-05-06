@@ -10,7 +10,7 @@ import { fileURLToPath } from "url";
 import prisma, { connectDB } from "./config/database.js";
 
 import authRoutes from "./routes/authRoutes.js";
-// import sellerAuthRoutes from "./modules/seller/sellerAuth.routes.js";
+import sellerAuthRoutes from "./modules/seller/sellerAuth.routes.js";
 // import categoryRoutes from "./modules/category/categoryRoutes.js";
 // import productRoutes from "./modules/product/product.routes.js";
 
@@ -84,7 +84,7 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 app.use(`/api/${API_VERSION}/auth`, authRoutes);
-// app.use("/api/v1/sellers/auth", sellerAuthRoutes);
+app.use("/api/v1/sellers/auth", sellerAuthRoutes);
 // app.use(`/api/${API_VERSION}/categories`, categoryRoutes);
 // app.use(`/api/${API_VERSION}/products`, productRoutes);
 

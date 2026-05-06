@@ -1,6 +1,6 @@
-
-
-import Seller from "./Seller.model.js";
+// modules/seller/sellerOnboarding.controller.js
+import SellerModel from "./Seller.model.js";
+import prisma from "../../config/database.js";
 
 // ============================================================
 //  @desc    Update Business Information
@@ -38,19 +38,24 @@ export const updateBusinessInfo = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findByIdAndUpdate(
-            req.seller._id,
-            { $set: updates },
-            { new: true, runValidators: true },
-        );
+        const seller = await prisma.seller.update({
+            where: { id: parseInt(req.seller.id) },
+            data: updates,
+        });
 
         // Check if profile is now complete
-        const wasComplete = seller.profileCompletedAt;
-        const isNowComplete = seller.isProfileComplete;
+        const hasBusinessInfo = seller.businessType && 
+            (seller.businessType === "individual" || seller.companyRegistrationNumber);
+        const hasFinancialInfo = seller.payoutMethod && seller.bankAccountNumber;
+        const hasStoreInfo = seller.shopLogo || seller.shopDescription;
+        const hasIdentityInfo = seller.identityType && seller.identityNumber && seller.identityFrontImage;
+        const isNowComplete = !!(hasBusinessInfo && hasFinancialInfo && hasStoreInfo && hasIdentityInfo);
 
-        if (isNowComplete && !wasComplete) {
-            seller.profileCompletedAt = new Date();
-            await seller.save({ validateBeforeSave: false });
+        if (isNowComplete && !seller.profileCompletedAt) {
+            await prisma.seller.update({
+                where: { id: seller.id },
+                data: { profileCompletedAt: new Date() },
+            });
         }
 
         return res.status(200).json({
@@ -61,8 +66,8 @@ export const updateBusinessInfo = async (req, res, next) => {
                 companyRegistrationNumber: seller.companyRegistrationNumber,
                 vatOrBinNumber: seller.vatOrBinNumber,
                 country: seller.country,
-                isProfileComplete: seller.isProfileComplete,
-                profileCompletedAt: seller.profileCompletedAt,
+                isProfileComplete: isNowComplete,
+                profileCompletedAt: isNowComplete ? new Date() : seller.profileCompletedAt,
             },
         });
     } catch (error) {
@@ -101,10 +106,7 @@ export const updateFinancialInfo = async (req, res, next) => {
         }
 
         // Validation
-        if (
-            updates.payoutMethod &&
-            !["bank", "mobile_banking", "payoneer"].includes(updates.payoutMethod)
-        ) {
+        if (updates.payoutMethod && !["bank", "mobile_banking", "payoneer"].includes(updates.payoutMethod)) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid payout method.",
@@ -118,19 +120,24 @@ export const updateFinancialInfo = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findByIdAndUpdate(
-            req.seller._id,
-            { $set: updates },
-            { new: true, runValidators: true },
-        );
+        const seller = await prisma.seller.update({
+            where: { id: parseInt(req.seller.id) },
+            data: updates,
+        });
 
         // Check if profile is now complete
-        const wasComplete = seller.profileCompletedAt;
-        const isNowComplete = seller.isProfileComplete;
+        const hasBusinessInfo = seller.businessType && 
+            (seller.businessType === "individual" || seller.companyRegistrationNumber);
+        const hasFinancialInfo = seller.payoutMethod && seller.bankAccountNumber;
+        const hasStoreInfo = seller.shopLogo || seller.shopDescription;
+        const hasIdentityInfo = seller.identityType && seller.identityNumber && seller.identityFrontImage;
+        const isNowComplete = !!(hasBusinessInfo && hasFinancialInfo && hasStoreInfo && hasIdentityInfo);
 
-        if (isNowComplete && !wasComplete) {
-            seller.profileCompletedAt = new Date();
-            await seller.save({ validateBeforeSave: false });
+        if (isNowComplete && !seller.profileCompletedAt) {
+            await prisma.seller.update({
+                where: { id: seller.id },
+                data: { profileCompletedAt: new Date() },
+            });
         }
 
         return res.status(200).json({
@@ -144,8 +151,8 @@ export const updateFinancialInfo = async (req, res, next) => {
                     : null,
                 bankName: seller.bankName,
                 payoutSchedule: seller.payoutSchedule,
-                isProfileComplete: seller.isProfileComplete,
-                profileCompletedAt: seller.profileCompletedAt,
+                isProfileComplete: isNowComplete,
+                profileCompletedAt: isNowComplete ? new Date() : seller.profileCompletedAt,
             },
         });
     } catch (error) {
@@ -189,11 +196,10 @@ export const updateLogisticsInfo = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findByIdAndUpdate(
-            req.seller._id,
-            { $set: updates },
-            { new: true, runValidators: true },
-        );
+        const seller = await prisma.seller.update({
+            where: { id: parseInt(req.seller.id) },
+            data: updates,
+        });
 
         return res.status(200).json({
             success: true,
@@ -203,7 +209,7 @@ export const updateLogisticsInfo = async (req, res, next) => {
                 warehouseLocation: seller.warehouseLocation,
                 returnAddress: seller.returnAddress,
                 deliveryCoverageArea: seller.deliveryCoverageArea,
-                isProfileComplete: seller.isProfileComplete,
+                isProfileComplete: false, // Will be calculated on next status check
             },
         });
     } catch (error) {
@@ -234,19 +240,24 @@ export const updateStoreInfo = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findByIdAndUpdate(
-            req.seller._id,
-            { $set: updates },
-            { new: true, runValidators: true },
-        );
+        const seller = await prisma.seller.update({
+            where: { id: parseInt(req.seller.id) },
+            data: updates,
+        });
 
         // Check if profile is now complete
-        const wasComplete = seller.profileCompletedAt;
-        const isNowComplete = seller.isProfileComplete;
+        const hasBusinessInfo = seller.businessType && 
+            (seller.businessType === "individual" || seller.companyRegistrationNumber);
+        const hasFinancialInfo = seller.payoutMethod && seller.bankAccountNumber;
+        const hasStoreInfo = seller.shopLogo || seller.shopDescription;
+        const hasIdentityInfo = seller.identityType && seller.identityNumber && seller.identityFrontImage;
+        const isNowComplete = !!(hasBusinessInfo && hasFinancialInfo && hasStoreInfo && hasIdentityInfo);
 
-        if (isNowComplete && !wasComplete) {
-            seller.profileCompletedAt = new Date();
-            await seller.save({ validateBeforeSave: false });
+        if (isNowComplete && !seller.profileCompletedAt) {
+            await prisma.seller.update({
+                where: { id: seller.id },
+                data: { profileCompletedAt: new Date() },
+            });
         }
 
         return res.status(200).json({
@@ -257,8 +268,8 @@ export const updateStoreInfo = async (req, res, next) => {
                 shopBanner: seller.shopBanner,
                 shopDescription: seller.shopDescription,
                 socialLinks: seller.socialLinks,
-                isProfileComplete: seller.isProfileComplete,
-                profileCompletedAt: seller.profileCompletedAt,
+                isProfileComplete: isNowComplete,
+                profileCompletedAt: isNowComplete ? new Date() : seller.profileCompletedAt,
             },
         });
     } catch (error) {
@@ -273,14 +284,21 @@ export const updateStoreInfo = async (req, res, next) => {
 // ============================================================
 export const getOnboardingStatus = async (req, res, next) => {
     try {
-        const seller = await Seller.findById(req.seller._id);
+        const seller = await prisma.seller.findUnique({
+            where: { id: parseInt(req.seller.id) },
+        });
+
+        if (!seller) {
+            return res.status(404).json({
+                success: false,
+                message: "Seller not found",
+            });
+        }
 
         const sections = {
             business: {
-                completed: !!(
-                    seller.businessType &&
-                    (seller.businessType === "individual" || seller.companyRegistrationNumber)
-                ),
+                completed: !!(seller.businessType &&
+                    (seller.businessType === "individual" || seller.companyRegistrationNumber)),
                 data: {
                     businessType: seller.businessType,
                     companyRegistrationNumber: seller.companyRegistrationNumber,
@@ -320,10 +338,17 @@ export const getOnboardingStatus = async (req, res, next) => {
             },
         };
 
+        const hasBusinessInfo = seller.businessType && 
+            (seller.businessType === "individual" || seller.companyRegistrationNumber);
+        const hasFinancialInfo = seller.payoutMethod && seller.bankAccountNumber;
+        const hasStoreInfo = seller.shopLogo || seller.shopDescription;
+        const hasIdentityInfo = seller.identityType && seller.identityNumber && seller.identityFrontImage;
+        const isProfileComplete = !!(hasBusinessInfo && hasFinancialInfo && hasStoreInfo && hasIdentityInfo);
+
         return res.status(200).json({
             success: true,
             data: {
-                isProfileComplete: seller.isProfileComplete,
+                isProfileComplete,
                 profileCompletedAt: seller.profileCompletedAt,
                 sections,
                 missingRequirements: {

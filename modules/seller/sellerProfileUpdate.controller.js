@@ -1,10 +1,15 @@
-import Seller from "./Seller.model.js";
+// modules/seller/sellerProfileUpdate.controller.js
+import prisma from "../../config/database.js";
 
-
-const hasPendingForSection = (seller, section) => {
-    return seller.pendingUpdates?.some(
-        (u) => u.section === section && u.status === "pending",
-    );
+const hasPendingForSection = async (sellerId, section) => {
+    const pending = await prisma.pendingUpdate.findFirst({
+        where: {
+            sellerId,
+            section,
+            status: "pending",
+        },
+    });
+    return !!pending;
 };
 
 // ============================================================
@@ -30,25 +35,26 @@ export const requestProfileUpdate = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
-        if (hasPendingForSection(seller, "profile")) {
+        const sellerId = parseInt(req.seller.id);
+        
+        if (await hasPendingForSection(sellerId, "profile")) {
             return res.status(409).json({
                 success: false,
-                message:
-                    "You already have a pending profile update request. Please wait for admin review before submitting another.",
+                message: "You already have a pending profile update request. Please wait for admin review before submitting another.",
             });
         }
 
-        seller.pendingUpdates.push({
-            section: "profile",
-            data: updates,
+        await prisma.pendingUpdate.create({
+            data: {
+                sellerId,
+                section: "profile",
+                data: updates,
+            },
         });
 
-        await seller.save({ validateBeforeSave: false });
         return res.status(202).json({
             success: true,
-            message:
-                "Profile update request submitted successfully. It will be applied after admin approval.",
+            message: "Profile update request submitted successfully. It will be applied after admin approval.",
             data: {
                 section: "profile",
                 requestedChanges: updates,
@@ -86,25 +92,26 @@ export const requestBusinessUpdate = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
-        if (hasPendingForSection(seller, "business")) {
+        const sellerId = parseInt(req.seller.id);
+
+        if (await hasPendingForSection(sellerId, "business")) {
             return res.status(409).json({
                 success: false,
-                message:
-                    "You already have a pending business info update request. Please wait for admin review.",
+                message: "You already have a pending business info update request. Please wait for admin review.",
             });
         }
 
-        seller.pendingUpdates.push({
-            section: "business",
-            data: updates,
+        await prisma.pendingUpdate.create({
+            data: {
+                sellerId,
+                section: "business",
+                data: updates,
+            },
         });
 
-        await seller.save({ validateBeforeSave: false });
         return res.status(202).json({
             success: true,
-            message:
-                "Business info update request submitted. It will be applied after admin approval.",
+            message: "Business info update request submitted. It will be applied after admin approval.",
             data: {
                 section: "business",
                 requestedChanges: updates,
@@ -145,27 +152,26 @@ export const requestFinancialUpdate = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
+        const sellerId = parseInt(req.seller.id);
 
-        if (hasPendingForSection(seller, "financial")) {
+        if (await hasPendingForSection(sellerId, "financial")) {
             return res.status(409).json({
                 success: false,
-                message:
-                    "You already have a pending financial info update request. Please wait for admin review.",
+                message: "You already have a pending financial info update request. Please wait for admin review.",
             });
         }
 
-        seller.pendingUpdates.push({
-            section: "financial",
-            data: updates,
+        await prisma.pendingUpdate.create({
+            data: {
+                sellerId,
+                section: "financial",
+                data: updates,
+            },
         });
-
-        await seller.save({ validateBeforeSave: false });
 
         return res.status(202).json({
             success: true,
-            message:
-                "Financial info update request submitted. It will be applied after admin approval.",
+            message: "Financial info update request submitted. It will be applied after admin approval.",
             data: {
                 section: "financial",
                 requestedChanges: {
@@ -209,27 +215,26 @@ export const requestLogisticsUpdate = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
+        const sellerId = parseInt(req.seller.id);
 
-        if (hasPendingForSection(seller, "logistics")) {
+        if (await hasPendingForSection(sellerId, "logistics")) {
             return res.status(409).json({
                 success: false,
-                message:
-                    "You already have a pending logistics info update request. Please wait for admin review.",
+                message: "You already have a pending logistics info update request. Please wait for admin review.",
             });
         }
 
-        seller.pendingUpdates.push({
-            section: "logistics",
-            data: updates,
+        await prisma.pendingUpdate.create({
+            data: {
+                sellerId,
+                section: "logistics",
+                data: updates,
+            },
         });
-
-        await seller.save({ validateBeforeSave: false });
 
         return res.status(202).json({
             success: true,
-            message:
-                "Logistics info update request submitted. It will be applied after admin approval.",
+            message: "Logistics info update request submitted. It will be applied after admin approval.",
             data: {
                 section: "logistics",
                 requestedChanges: updates,
@@ -263,26 +268,26 @@ export const requestStoreUpdate = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
+        const sellerId = parseInt(req.seller.id);
 
-        if (hasPendingForSection(seller, "store")) {
+        if (await hasPendingForSection(sellerId, "store")) {
             return res.status(409).json({
                 success: false,
-                message:
-                    "You already have a pending store info update request. Please wait for admin review.",
+                message: "You already have a pending store info update request. Please wait for admin review.",
             });
         }
 
-        seller.pendingUpdates.push({
-            section: "store",
-            data: updates,
+        await prisma.pendingUpdate.create({
+            data: {
+                sellerId,
+                section: "store",
+                data: updates,
+            },
         });
 
-        await seller.save({ validateBeforeSave: false });
         return res.status(202).json({
             success: true,
-            message:
-                "Store info update request submitted. It will be applied after admin approval.",
+            message: "Store info update request submitted. It will be applied after admin approval.",
             data: {
                 section: "store",
                 requestedChanges: updates,
@@ -301,10 +306,10 @@ export const requestStoreUpdate = async (req, res, next) => {
 export const requestIdentityUpdate = async (req, res, next) => {
     try {
         const allowedFields = [
-            "identityType",  
-            "identityNumber",   
-            "identityFrontImage", 
-            "identityBackImage",  
+            "identityType",
+            "identityNumber",
+            "identityFrontImage",
+            "identityBackImage",
         ];
 
         const updates = {};
@@ -321,36 +326,39 @@ export const requestIdentityUpdate = async (req, res, next) => {
             });
         }
 
-
         if (updates.identityType && (!updates.identityNumber || !updates.identityFrontImage)) {
             return res.status(400).json({
                 success: false,
-                message:
-                    "When submitting identity type, identityNumber and identityFrontImage are also required.",
+                message: "When submitting identity type, identityNumber and identityFrontImage are also required.",
             });
         }
 
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
+        const sellerId = parseInt(req.seller.id);
 
-        if (hasPendingForSection(seller, "identity")) {
+        if (await hasPendingForSection(sellerId, "identity")) {
             return res.status(409).json({
                 success: false,
-                message:
-                    "You already have a pending identity update request. Please wait for admin review.",
+                message: "You already have a pending identity update request. Please wait for admin review.",
             });
         }
 
-        seller.isIdentityVerified = false;
-        seller.pendingUpdates.push({
-            section: "identity",
-            data: updates,
+        // Reset identity verification status
+        await prisma.seller.update({
+            where: { id: sellerId },
+            data: { isIdentityVerified: false },
         });
 
-        await seller.save({ validateBeforeSave: false });
+        await prisma.pendingUpdate.create({
+            data: {
+                sellerId,
+                section: "identity",
+                data: updates,
+            },
+        });
+
         return res.status(202).json({
             success: true,
-            message:
-                "Identity update request submitted. It will be reviewed and applied after admin approval.",
+            message: "Identity update request submitted. It will be reviewed and applied after admin approval.",
             data: {
                 section: "identity",
                 requestedChanges: {
@@ -375,9 +383,12 @@ export const requestIdentityUpdate = async (req, res, next) => {
 // ============================================================
 export const getMyPendingUpdates = async (req, res, next) => {
     try {
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
-
-        const allUpdates = seller.pendingUpdates || [];
+        const sellerId = parseInt(req.seller.id);
+        
+        const allUpdates = await prisma.pendingUpdate.findMany({
+            where: { sellerId },
+            orderBy: { requestedAt: "desc" },
+        });
 
         const grouped = {
             pending: [],
@@ -387,27 +398,26 @@ export const getMyPendingUpdates = async (req, res, next) => {
 
         allUpdates.forEach((update) => {
             const entry = {
-                id: update._id,
+                id: update.id,
                 section: update.section,
                 requestedAt: update.requestedAt,
                 reviewedAt: update.reviewedAt,
                 rejectionReason: update.rejectionReason,
-                data:
-                    update.section === "identity"
-                        ? {
-                              ...update.data,
-                              identityNumber: update.data.identityNumber
-                                  ? "****" + update.data.identityNumber.slice(-4)
-                                  : undefined,
-                          }
-                        : update.section === "financial"
-                          ? {
-                                ...update.data,
-                                bankAccountNumber: update.data.bankAccountNumber
-                                    ? "****" + update.data.bankAccountNumber.slice(-4)
-                                    : undefined,
-                            }
-                          : update.data,
+                data: update.section === "identity"
+                    ? {
+                          ...update.data,
+                          identityNumber: update.data.identityNumber
+                              ? "****" + update.data.identityNumber.slice(-4)
+                              : undefined,
+                      }
+                    : update.section === "financial"
+                    ? {
+                          ...update.data,
+                          bankAccountNumber: update.data.bankAccountNumber
+                              ? "****" + update.data.bankAccountNumber.slice(-4)
+                              : undefined,
+                      }
+                    : update.data,
             };
             grouped[update.status].push(entry);
         });
@@ -432,8 +442,10 @@ export const getMyPendingUpdates = async (req, res, next) => {
 export const cancelPendingUpdate = async (req, res, next) => {
     try {
         const { updateId } = req.params;
-        const seller = await Seller.findById(req.seller._id).select("+pendingUpdates");
-        const update = seller.pendingUpdates.id(updateId);
+
+        const update = await prisma.pendingUpdate.findUnique({
+            where: { id: updateId },
+        });
 
         if (!update) {
             return res.status(404).json({
@@ -449,9 +461,18 @@ export const cancelPendingUpdate = async (req, res, next) => {
             });
         }
 
-        // Mongoose subdocument remove
-        update.deleteOne();
-        await seller.save({ validateBeforeSave: false });
+        // Only the owner can cancel
+        if (update.sellerId !== parseInt(req.seller.id)) {
+            return res.status(403).json({
+                success: false,
+                message: "You can only cancel your own update requests.",
+            });
+        }
+
+        await prisma.pendingUpdate.delete({
+            where: { id: updateId },
+        });
+
         return res.status(200).json({
             success: true,
             message: "Pending update request cancelled successfully.",

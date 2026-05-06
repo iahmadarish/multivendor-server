@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  
+
 }
 
 datasource db {
@@ -57,6 +57,108 @@ model ShippingAddress {
 
   @@map("shipping_addresses")
 }
+
+
+model Seller {
+  id                 Int       @id @default(autoincrement())
+  fullName           String
+  shopName           String    @unique
+  email              String    @unique
+  phone              String    @unique
+  password           String
+  isEmailVerified    Boolean   @default(false)
+  isPhoneVerified    Boolean   @default(false)
+  twoFactorEnabled   Boolean   @default(false)
+
+  // OTP Fields
+  emailOtp           String?
+  emailOtpExpires    DateTime?
+  phoneOtp           String?
+  phoneOtpExpires    DateTime?
+
+  // Password Reset
+  passwordResetToken    String?
+  passwordResetExpires  DateTime?
+
+  // Business Info
+  businessType              String?
+  companyRegistrationNumber String?
+  vatOrBinNumber            String?
+  country                   String?
+
+  // Identity
+  identityType        String?
+  identityNumber      String?
+  identityFrontImage  String?
+  identityBackImage   String?
+  isIdentityVerified  Boolean   @default(false)
+
+  // Financial
+  payoutMethod      String?
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankName          String?
+  chequeImage       String?
+  payoutSchedule    String?
+  commissionRate    Float     @default(0)
+  taxWithholdingInfo String?
+
+  // Logistics
+  shippingMethod        String?
+  warehouseLocation     String?
+  returnAddress         String?
+  deliveryCoverageArea  String?
+
+  // Store
+  shopLogo        String?
+  shopBanner      String?
+  shopDescription String?
+  socialLinks     String[]
+
+  // Status & Metrics
+  status            String    @default("pending")
+  rating            Float     @default(0)
+  totalOrders       Int       @default(0)
+  cancellationRate  Float     @default(0)
+  returnRate        Float     @default(0)
+  lateShipmentRate  Float     @default(0)
+
+  // Agreements
+  termsAccepted             Boolean
+  privacyPolicyAccepted     Boolean
+  sellerAgreementAcceptedAt DateTime?
+  profileCompletedAt        DateTime?
+
+  // Token
+  refreshToken  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation
+  pendingUpdates PendingUpdate[]
+
+  @@map("sellers")
+}
+
+// ─── NEW: PendingUpdate Model (MongoDB Subdocument → Separate Table) ───
+model PendingUpdate {
+  id         String   @id @default(uuid())
+  sellerId   Int
+  section    String
+  data       Json
+  status     String   @default("pending")
+  requestedAt DateTime @default(now())
+  reviewedAt DateTime?
+  reviewedBy Int?
+  rejectionReason String?
+
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("pending_updates")
+}
+
+
 
 enum Role {
   USER

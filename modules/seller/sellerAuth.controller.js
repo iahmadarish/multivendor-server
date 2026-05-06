@@ -1,4 +1,5 @@
-import Seller from "./Seller.model.js";
+import SellerModel from "./Seller.model.js";
+import prisma from "../../config/database.js";
 import {
     generateAccessToken,
     generateRefreshToken,
@@ -7,7 +8,7 @@ import {
 import { generatePhoneOtp, hashToken, generateEmailOtp } from "../../utils/token.utils.js";
 import { sendEmailOtp, sendResendConfirmation } from "../../utils/email.service.js";
 
-// ─── Helper: attach HttpOnly refresh-token cookie ─────────────
+//  attach HttpOnly refresh-token cookie
 const attachRefreshCookie = (res, token) => {
     res.cookie("sellerRefreshToken", token, {
         httpOnly: true,
@@ -17,7 +18,7 @@ const attachRefreshCookie = (res, token) => {
     });
 };
 
-// ─── Helper: clear refresh-token cookie ───────────────────────
+//clear refresh-token cookie
 const clearRefreshCookie = (res) => {
     res.clearCookie("sellerRefreshToken", {
         httpOnly: true,
@@ -27,7 +28,7 @@ const clearRefreshCookie = (res) => {
 };
 
 // ============================================================
-//  @desc    Register a new seller (UPDATED)
+//  @desc    Register a new seller
 //  @route   POST /api/v1/sellers/auth/register
 //  @access  Public
 // ============================================================
@@ -36,35 +37,38 @@ export const registerSeller = async (req, res, next) => {
         const { fullName, shopName, email, phone, password, termsAccepted, privacyPolicyAccepted } =
             req.body;
 
-        // Check for duplicate
-        const existingSeller = await Seller.findOne({
-            $or: [{ email }, { phone }],
+        // Checking for duplicate
+        const existingSeller = await prisma.seller.findFirst({
+            where: {
+                OR: [
+                    { email: email.toLowerCase() },
+                    { phone },
+                ],
+            },
         });
 
         if (existingSeller) {
-            const field = existingSeller.email === email ? "email" : "phone";
+            const field = existingSeller.email === email.toLowerCase() ? "email" : "phone";
             return res.status(409).json({
                 success: false,
-                message: `A seller account with this ${field} already exists.`,
+                message: `A seller account with this ${field} already exists. Please select a different  email or number or contact with authority`,
             });
         }
 
-        // Generate email OTP instead of token
+        // Generate email OTP
         const { otp, hashedOtp, expires } = generateEmailOtp();
 
         // Create seller
-        const seller = await Seller.create({
+        const seller = await SellerModel.create({
             fullName,
             shopName,
             email,
             phone,
             password,
             termsAccepted: termsAccepted === "true" || termsAccepted === true,
-            privacyPolicyAccepted:
-                privacyPolicyAccepted === "true" || privacyPolicyAccepted === true,
-            sellerAgreementAcceptedAt: new Date(),
-            emailOtp: hashedOtp, 
-            emailOtpExpires: expires, 
+            privacyPolicyAccepted: privacyPolicyAccepted === "true" || privacyPolicyAccepted === true,
+            emailOtp: hashedOtp,
+            emailOtpExpires: expires,
         });
 
         // Send real OTP via email
@@ -72,15 +76,15 @@ export const registerSeller = async (req, res, next) => {
 
         return res.status(201).json({
             success: true,
-            message:
-                "Seller account created successfully. Please verify your email with the OTP sent to your inbox.",
+            message: "Seller account created successfully. Please verify your email with the OTP sent to your inbox.",
             data: {
-                seller: seller.toSafeObject(),
+                seller: SellerModel.toSafeObject(seller),
             },
         });
     } catch (error) {
-        if (error.code === 11000) {
-            const field = Object.keys(error.keyPattern)[0];
+        // Prisma unique constraint error
+        if (error.code === "P2002") {
+            const field = error.meta?.target?.[0] || "field";
             return res.status(409).json({
                 success: false,
                 message: `A seller with this ${field} already exists.`,
@@ -91,7 +95,7 @@ export const registerSeller = async (req, res, next) => {
 };
 
 // ============================================================
-//  @desc    Login (UPDATED - with email verification check)
+//  @desc    Login
 //  @route   POST /api/v1/sellers/auth/login
 //  @access  Public
 // ============================================================
@@ -99,7 +103,11 @@ export const loginSeller = async (req, res, next) => {
     try {
         const { email, password } = req.body;
 
-        const seller = await Seller.findOne({ email }).select("+password +refreshToken");
+        // Find seller with password
+        const seller = await prisma.seller.findUnique({
+            where: { email: email.toLowerCase() },
+        });
+
         if (!seller) {
             return res.status(401).json({
                 success: false,
@@ -107,7 +115,7 @@ export const loginSeller = async (req, res, next) => {
             });
         }
 
-        const isMatch = await seller.comparePassword(password);
+        const isMatch = await SellerModel.comparePassword(password, seller.password);
         if (!isMatch) {
             return res.status(401).json({
                 success: false,
@@ -115,12 +123,11 @@ export const loginSeller = async (req, res, next) => {
             });
         }
 
-        // NEW: Block if email not verified
+        // Block if email not verified
         if (!seller.isEmailVerified) {
             return res.status(403).json({
                 success: false,
-                message:
-                    "Please verify your email before logging in. Check your inbox for the OTP.",
+                message: "Please verify your email before logging in. Check your inbox for the OTP.",
             });
         }
 
@@ -131,21 +138,32 @@ export const loginSeller = async (req, res, next) => {
             });
         }
 
-        const accessToken = generateAccessToken(seller._id);
-        const refreshToken = generateRefreshToken(seller._id);
+        const accessToken = generateAccessToken(seller.id);
+        const refreshToken = generateRefreshToken(seller.id);
 
-        seller.refreshToken = hashToken(refreshToken);
-        await seller.save({ validateBeforeSave: false });
+        // Store hashed refresh token
+        await prisma.seller.update({
+            where: { id: seller.id },
+            data: { refreshToken: hashToken(refreshToken) },
+        });
 
         attachRefreshCookie(res, refreshToken);
+
+        // Check profile completion
+        const hasBusinessInfo = seller.businessType && 
+            (seller.businessType === "individual" || seller.companyRegistrationNumber);
+        const hasFinancialInfo = seller.payoutMethod && seller.bankAccountNumber;
+        const hasStoreInfo = seller.shopLogo || seller.shopDescription;
+        const hasIdentityInfo = seller.identityType && seller.identityNumber && seller.identityFrontImage;
+        const isProfileComplete = !!(hasBusinessInfo && hasFinancialInfo && hasStoreInfo && hasIdentityInfo);
 
         return res.status(200).json({
             success: true,
             message: "Login successful.",
             data: {
-                seller: seller.toSafeObject(),
+                seller: SellerModel.toSafeObject(seller),
                 accessToken,
-                isProfileComplete: seller.isProfileComplete, // Send profile completion status
+                isProfileComplete,
             },
         });
     } catch (error) {
@@ -154,7 +172,7 @@ export const loginSeller = async (req, res, next) => {
 };
 
 // ============================================================
-//  @desc    Verify email with OTP (NEW)
+//  @desc    Verify email with OTP
 //  @route   POST /api/v1/sellers/auth/verify-email-otp
 //  @access  Public
 // ============================================================
@@ -171,11 +189,7 @@ export const verifyEmailOtp = async (req, res, next) => {
 
         const hashedOtp = hashToken(otp);
 
-        const seller = await Seller.findOne({
-            email,
-            emailOtp: hashedOtp,
-            emailOtpExpires: { $gt: Date.now() },
-        }).select("+emailOtp +emailOtpExpires");
+        const seller = await SellerModel.findForEmailVerification(email, hashedOtp);
 
         if (!seller) {
             return res.status(400).json({
@@ -185,10 +199,14 @@ export const verifyEmailOtp = async (req, res, next) => {
         }
 
         // Mark email as verified and clear OTP fields
-        seller.isEmailVerified = true;
-        seller.emailOtp = undefined;
-        seller.emailOtpExpires = undefined;
-        await seller.save({ validateBeforeSave: false });
+        await prisma.seller.update({
+            where: { id: seller.id },
+            data: {
+                isEmailVerified: true,
+                emailOtp: null,
+                emailOtpExpires: null,
+            },
+        });
 
         return res.status(200).json({
             success: true,
@@ -200,7 +218,7 @@ export const verifyEmailOtp = async (req, res, next) => {
 };
 
 // ============================================================
-//  @desc    Resend email OTP (NEW)
+//  @desc    Resend email OTP
 //  @route   POST /api/v1/sellers/auth/resend-email-otp
 //  @access  Public
 // ============================================================
@@ -215,7 +233,7 @@ export const resendEmailOtp = async (req, res, next) => {
             });
         }
 
-        const seller = await Seller.findOne({ email }).select("+emailOtp +emailOtpExpires");
+        const seller = await SellerModel.findByEmail(email);
 
         if (!seller) {
             return res.status(404).json({
@@ -234,9 +252,13 @@ export const resendEmailOtp = async (req, res, next) => {
         // Generate new OTP
         const { otp, hashedOtp, expires } = generateEmailOtp();
 
-        seller.emailOtp = hashedOtp;
-        seller.emailOtpExpires = expires;
-        await seller.save({ validateBeforeSave: false });
+        await prisma.seller.update({
+            where: { id: seller.id },
+            data: {
+                emailOtp: hashedOtp,
+                emailOtpExpires: expires,
+            },
+        });
 
         // Send new OTP via email
         await sendEmailOtp(email, otp, seller.fullName);
@@ -252,52 +274,13 @@ export const resendEmailOtp = async (req, res, next) => {
 };
 
 // ============================================================
-//  @desc    Verify seller email via token
-//  @route   POST /api/v1/sellers/auth/verify-email
-//  @access  Public
-// ============================================================
-// export const verifyEmail = async (req, res, next) => {
-//     try {
-//         const { token } = req.body;
-
-//         // Hash the incoming raw token for DB lookup
-//         const hashedToken = hashToken(token);
-
-//         const seller = await Seller.findOne({
-//             emailVerificationToken: hashedToken,
-//             emailVerificationExpires: { $gt: Date.now() },
-//         }).select("+emailVerificationToken +emailVerificationExpires");
-
-//         if (!seller) {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: "Email verification token is invalid or has expired.",
-//             });
-//         }
-
-//         // Mark email as verified and clear token
-//         seller.isEmailVerified = true;
-//         seller.emailVerificationToken = undefined;
-//         seller.emailVerificationExpires = undefined;
-//         await seller.save({ validateBeforeSave: false });
-
-//         return res.status(200).json({
-//             success: true,
-//             message: "Email verified successfully. You may now log in.",
-//         });
-//     } catch (error) {
-//         next(error);
-//     }
-// };
-
-// ============================================================
 //  @desc    Send phone OTP
 //  @route   POST /api/v1/sellers/auth/send-phone-otp
 //  @access  Private (seller must be logged in)
 // ============================================================
 export const sendPhoneOtp = async (req, res, next) => {
     try {
-        const seller = await Seller.findById(req.seller._id).select("+phoneOtp +phoneOtpExpires");
+        const seller = await SellerModel.findById(parseInt(req.seller.id));
 
         if (seller.isPhoneVerified) {
             return res.status(400).json({
@@ -308,18 +291,17 @@ export const sendPhoneOtp = async (req, res, next) => {
 
         const { otp, hashedOtp, expires } = generatePhoneOtp();
 
-        seller.phoneOtp = hashedOtp;
-        seller.phoneOtpExpires = expires;
-        await seller.save({ validateBeforeSave: false });
-
-        // [MOCK] Log OTP — replace with Twilio / AWS SNS / local gateway in production
-        console.log(`\n📱 [MOCK SMS] Send to ${seller.phone}:`);
-        console.log(`   Your OTP: ${otp} (valid for 10 minutes)\n`);
+        await prisma.seller.update({
+            where: { id: seller.id },
+            data: {
+                phoneOtp: hashedOtp,
+                phoneOtpExpires: expires,
+            },
+        });
 
         return res.status(200).json({
             success: true,
             message: `OTP sent to ${seller.phone}. Valid for 10 minutes.`,
-            // ⚠️  Remove 'dev_otp' before going to production!
             ...(process.env.NODE_ENV !== "production" && { dev_otp: otp }),
         });
     } catch (error) {
@@ -337,11 +319,10 @@ export const verifyPhoneOtp = async (req, res, next) => {
         const { otp } = req.body;
         const hashedOtp = hashToken(otp);
 
-        const seller = await Seller.findOne({
-            _id: req.seller._id,
-            phoneOtp: hashedOtp,
-            phoneOtpExpires: { $gt: Date.now() },
-        }).select("+phoneOtp +phoneOtpExpires");
+        const seller = await SellerModel.findForPhoneVerification(
+            parseInt(req.seller.id),
+            hashedOtp
+        );
 
         if (!seller) {
             return res.status(400).json({
@@ -350,10 +331,14 @@ export const verifyPhoneOtp = async (req, res, next) => {
             });
         }
 
-        seller.isPhoneVerified = true;
-        seller.phoneOtp = undefined;
-        seller.phoneOtpExpires = undefined;
-        await seller.save({ validateBeforeSave: false });
+        await prisma.seller.update({
+            where: { id: seller.id },
+            data: {
+                isPhoneVerified: true,
+                phoneOtp: null,
+                phoneOtpExpires: null,
+            },
+        });
 
         return res.status(200).json({
             success: true,
@@ -365,9 +350,9 @@ export const verifyPhoneOtp = async (req, res, next) => {
 };
 
 // ============================================================
-//  @desc    Refresh access token using refresh token cookie
+//  @desc    Refresh access token
 //  @route   POST /api/v1/sellers/auth/refresh-token
-//  @access  Public (uses HttpOnly cookie)
+//  @access  Public
 // ============================================================
 export const refreshAccessToken = async (req, res, next) => {
     try {
@@ -385,10 +370,12 @@ export const refreshAccessToken = async (req, res, next) => {
 
         // Check against DB-stored hash
         const hashedToken = hashToken(token);
-        const seller = await Seller.findOne({
-            _id: decoded.id,
-            refreshToken: hashedToken,
-        }).select("+refreshToken");
+        const seller = await prisma.seller.findFirst({
+            where: {
+                id: parseInt(decoded.id),
+                refreshToken: hashedToken,
+            },
+        });
 
         if (!seller) {
             clearRefreshCookie(res);
@@ -398,12 +385,14 @@ export const refreshAccessToken = async (req, res, next) => {
             });
         }
 
-        // Rotate tokens (token rotation pattern)
-        const newAccessToken = generateAccessToken(seller._id);
-        const newRefreshToken = generateRefreshToken(seller._id);
+        // Rotate tokens
+        const newAccessToken = generateAccessToken(seller.id);
+        const newRefreshToken = generateRefreshToken(seller.id);
 
-        seller.refreshToken = hashToken(newRefreshToken);
-        await seller.save({ validateBeforeSave: false });
+        await prisma.seller.update({
+            where: { id: seller.id },
+            data: { refreshToken: hashToken(newRefreshToken) },
+        });
 
         attachRefreshCookie(res, newRefreshToken);
 
@@ -425,18 +414,16 @@ export const refreshAccessToken = async (req, res, next) => {
 };
 
 // ============================================================
-//  @desc    Logout seller (clear refresh token)
+//  @desc    Logout seller
 //  @route   POST /api/v1/sellers/auth/logout
 //  @access  Private
 // ============================================================
 export const logoutSeller = async (req, res, next) => {
     try {
-        // Remove refresh token from DB
-        await Seller.findByIdAndUpdate(
-            req.seller._id,
-            { $unset: { refreshToken: "" } },
-            { new: true },
-        );
+        await prisma.seller.update({
+            where: { id: parseInt(req.seller.id) },
+            data: { refreshToken: null },
+        });
 
         clearRefreshCookie(res);
 
@@ -456,11 +443,18 @@ export const logoutSeller = async (req, res, next) => {
 // ============================================================
 export const getSellerProfile = async (req, res, next) => {
     try {
-        const seller = await Seller.findById(req.seller._id);
+        const seller = await SellerModel.findById(parseInt(req.seller.id));
+
+        if (!seller) {
+            return res.status(404).json({
+                success: false,
+                message: "Seller not found.",
+            });
+        }
 
         return res.status(200).json({
             success: true,
-            data: { seller: seller.toSafeObject() },
+            data: { seller: SellerModel.toSafeObject(seller) },
         });
     } catch (error) {
         next(error);

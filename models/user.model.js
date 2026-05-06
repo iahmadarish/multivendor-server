@@ -4,7 +4,6 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
 class UserModel {
-    // Create a new user
     static async create(userData) {
         const hashedPassword = await bcrypt.hash(userData.password, 10);
 
@@ -17,9 +16,8 @@ class UserModel {
         });
     }
 
-    // Find user by email
+
     static async findByEmail(email, includePassword = false) {
-        // Prisma doesn't have select: false, we control password exposure manually
         return prisma.user.findUnique({
             where: { email: email.toLowerCase() },
         });
